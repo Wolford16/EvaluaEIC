@@ -61,31 +61,27 @@
       const {motores}=await api('motores');
       const motor=motores[0];
       destino.innerHTML=`<div class="titulo-seccion"><h2>Inteligencia artificial</h2><span class="insignia ${motor.configurado?'verde':''}">${motor.configurado?'Configurada':'Pendiente de configuración'}</span></div>
-        <article class="configuracion-groq"><div class="titulo-con-icono"><span class="icono-titulo">${i('ia')}</span><h3>Groq</h3></div>
-          <dl class="datos-groq"><div><dt>Modelo</dt><dd>${e(motor.modelo||'Sin configurar')}</dd></div><div><dt>Clave API</dt><dd>${motor.clave_configurada?'Configurada':'Sin configurar'}</dd></div></dl>
+        <article class="configuracion-openrouter"><div class="titulo-con-icono"><span class="icono-titulo">${i('ia')}</span><h3>OpenRouter</h3></div>
+          <dl class="datos-openrouter"><div><dt>Modelo</dt><dd>${e(motor.modelo||'Sin configurar')}</dd></div><div><dt>Clave API</dt><dd>${motor.clave_configurada?'Configurada':'Sin configurar'}</dd></div></dl>
           <p class="texto-suave texto-pequeno">La clave y el modelo se configuran en el archivo privado .env.</p>
-          <div class="acciones-groq"><button class="boton primario" data-accion="probar-motor" data-id="groq" ${motor.configurado?'':'disabled'}>${i('ia')} Probar conexión</button><span class="texto-suave texto-pequeno">Realiza una generación breve de prueba.</span></div>
-          <p id="prueba-groq" class="resultado-prueba" role="status"></p>
+          <div class="acciones-openrouter"><button class="boton primario" data-accion="probar-motor" data-id="openrouter" ${motor.configurado?'':'disabled'}>${i('ia')} Probar conexión</button><span class="texto-suave texto-pequeno">Realiza una generación breve de prueba.</span></div>
+          <p id="prueba-openrouter" class="resultado-prueba" role="status"></p>
         </article>`;
     }
   }
   function cabeceraDialogo(sobrelinea,titulo) {return `<div class="cabecera-dialogo"><div><span class="sobrelinea">${sobrelinea}</span><h2 id="titulo-dialogo">${titulo}</h2></div><button class="boton-icono" data-cerrar aria-label="Cerrar">${i('cerrar')}</button></div>`;}
-  async function abrirCarga() {
+  function abrirCarga() {
     const numeroSolicitud=++secuenciaCarga;
-    const {motores}=await api('motores'); borrador=null;preguntasRevision=[];
+    borrador=null;preguntasRevision=[];
     abrirDialogo(`${cabeceraDialogo('MATERIAL DE CÁTEDRA','Cargar PDF')}
       <div class="pasos-carga"><span class="actual">1. Documento</span><span>2. Preparación</span><span>3. Revisión</span></div>
       <form id="formulario-carga" class="formulario">
         <label class="zona-archivo" id="zona-archivo">${i('subir')}<strong>Selecciona o arrastra un PDF</strong><span id="nombre-pdf">Hasta 12 MB</span><input id="archivo-pdf" type="file" name="archivo" accept="application/pdf,.pdf" required></label>
         <label>Título<input name="titulo" id="titulo-material" required minlength="3" maxlength="200" placeholder="Nombre del material"></label>
-        <div class="dos-columnas"><div class="campo-grupo"><label for="cantidad-preguntas">Preguntas</label><div class="cantidad-opciones">${[3,5,8].map(n=>`<button type="button" class="boton suave pequeno ${n===5?'elegida':''}" data-cantidad="${n}">${n}</button>`).join('')}<input name="cantidad" id="cantidad-preguntas" type="number" value="5" min="1" max="30" aria-label="Cantidad de preguntas" required></div></div>
-        <label>Preparación<select name="motor" id="motor-carga">${motores.map(m=>`<option value="${m.id}" ${m.activo?'selected':''}>${e(m.nombre)}${m.configurado?'':' · sin configurar'}</option>`).join('')}<option value="manual">Redacción manual</option></select></label></div>
-        <p id="nota-motor" class="nota-motor"></p><p id="error-carga" class="mensaje-error" hidden role="alert"></p>
+        <label>Cantidad de preguntas<input name="cantidad" id="cantidad-preguntas" type="number" value="10" min="1" max="30" step="1" required></label>
+        <p class="nota-motor">El texto del documento se enviará a OpenRouter.</p><p id="error-carga" class="mensaje-error" hidden role="alert"></p>
         <div class="acciones-dialogo"><button class="boton suave" type="button" data-cerrar>Cancelar</button><button class="boton primario" type="submit">${i('ia')} Preparar preguntas</button></div>
       </form>`,'dialogo-carga');
-    const selectorMotor=document.getElementById('motor-carga');
-    const mostrarNota=()=>{const nota=document.getElementById('nota-motor');nota.hidden=selectorMotor.value==='manual';nota.textContent='El texto del documento se enviará a Groq.';};
-    selectorMotor.addEventListener('change',mostrarNota);mostrarNota();
     manejarCierre(()=>{secuenciaCarga++;});
     const archivo=document.getElementById('archivo-pdf');
     archivo.addEventListener('change',()=>{if(archivo.files[0]) {document.getElementById('nombre-pdf').textContent=archivo.files[0].name;document.getElementById('titulo-material').value=archivo.files[0].name.replace(/\.pdf$/i,'').replace(/[_-]/g,' ');}});
@@ -93,7 +89,6 @@
     zona.addEventListener('dragover',evento=>{evento.preventDefault();zona.classList.add('arrastrando');});
     zona.addEventListener('dragleave',()=>zona.classList.remove('arrastrando'));
     zona.addEventListener('drop',evento=>{evento.preventDefault();zona.classList.remove('arrastrando');if(evento.dataTransfer.files.length){archivo.files=evento.dataTransfer.files;archivo.dispatchEvent(new Event('change'));}});
-    document.querySelectorAll('[data-cantidad]').forEach(b=>b.addEventListener('click',()=>{document.getElementById('cantidad-preguntas').value=b.dataset.cantidad;document.querySelectorAll('[data-cantidad]').forEach(x=>x.classList.toggle('elegida',x===b));}));
     document.getElementById('formulario-carga').addEventListener('submit',async evento=>{
       evento.preventDefault(); const formulario=evento.currentTarget, boton=formulario.querySelector('[type="submit"]'), error=document.getElementById('error-carga');
       boton.disabled=true;error.hidden=true; const contenidoOriginal=boton.innerHTML;boton.innerHTML='<span class="cargando"></span> Leyendo el PDF y preparando preguntas…';
@@ -177,7 +172,7 @@
       else if(nombre==='eliminar-material') {if(!await confirmar('Eliminar material','Se eliminarán el PDF y sus preguntas. El historial de evaluaciones se conservará.'))return;const r=await api(nombre,{id});aviso(r.mensaje);if(esAdmin)await mostrarAdmin();else{if(materialActivo===id){materialActivo=null;document.getElementById('detalle-material').hidden=true;}await cargarMateriales();}}
       else if(nombre==='eliminar-pregunta'){if(!await confirmar('Eliminar pregunta','Se quitará del material. Las salas ya creadas conservarán su copia.'))return;const r=await api(nombre,{id});aviso(r.mensaje);await abrirMaterial(materialActivo,true);}
       else if(nombre==='estado-usuario'){b.disabled=true;const r=await api(nombre,{id});aviso(r.mensaje);await mostrarAdmin();}
-      else if(nombre==='probar-motor'){b.disabled=true;const salida=document.getElementById('prueba-groq');salida.textContent='Comprobando clave y modelo…';try{const r=await api(nombre,{});salida.textContent=`${r.mensaje} ${r.milisegundos} ms.`;}catch(error){salida.textContent=error.message;}finally{b.disabled=false;}}
+      else if(nombre==='probar-motor'){b.disabled=true;const salida=document.getElementById('prueba-openrouter');salida.textContent='Comprobando clave y modelo…';try{const r=await api(nombre,{});salida.textContent=`${r.mensaje} ${r.milisegundos} ms.`;}catch(error){salida.textContent=error.message;}finally{b.disabled=false;}}
     }catch(error){aviso(error.message,true);b.disabled=false;}
   });
   if(esAdmin)mostrarAdmin().catch(error=>aviso(error.message,true));

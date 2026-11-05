@@ -52,7 +52,7 @@ try {
             'estado'=>Evaluacion::estado(mb_strtoupper((string)($_GET['codigo']??'')),$usuario,$token),
             'usuarios'=>Administracion::usuarios(), 'crear-usuario'=>Administracion::crearUsuario($datos),
             'estado-usuario'=>Administracion::cambiarEstado($datos,$usuario), 'motores'=>['motores'=>InteligenciaArtificial::proveedores()],
-            'probar-motor'=>InteligenciaArtificial::probar((string)($datos['motor']??'groq')),
+            'probar-motor'=>InteligenciaArtificial::probar((string)($datos['motor']??'openrouter')),
             default=>throw new ErrorAplicacion('Ruta no encontrada.',404)
         };
         echo json_seguro(['ok'=>true]+$resultado); exit;

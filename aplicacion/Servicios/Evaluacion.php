@@ -104,6 +104,7 @@ final class Evaluacion {
             if (BaseDatos::ejecutar('SELECT id FROM respuestas_participantes WHERE participante_id=? AND indice=?',[$p['id'],$indice])->fetchColumn()) throw new ErrorAplicacion('Tu respuesta ya quedó registrada.',409);
             $tiempo=max(0,$ahora-((float)$sala['inicio']+$indice*((int)$sala['tiempo']+4)));
             $preguntas=json_decode($sala['preguntas_json'],true);
+            if (!array_key_exists($opcion,$preguntas[$indice]['opciones'])) throw new ErrorAplicacion('Selecciona una opción de la pregunta.');
             $correcta=$opcion===(int)$preguntas[$indice]['correcta'];
             BaseDatos::ejecutar('INSERT INTO respuestas_participantes (participante_id,indice,opcion,correcta,tiempo,puntos) VALUES (?,?,?,?,?,?)',[$p['id'],$indice,$opcion,(int)$correcta,$tiempo,self::puntos($correcta,$tiempo,(int)$sala['tiempo'])]);
             BaseDatos::ejecutar('UPDATE participantes SET visto_en=? WHERE id=?',[$ahora,$p['id']]);

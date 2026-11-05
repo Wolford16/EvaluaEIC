@@ -18,7 +18,7 @@ Las consultas usan parámetros preparados. Las mutaciones exigen un token CSRF. 
 | `salas_evaluacion` | Código, docente, inicio, tiempo y copia de preguntas |
 | `participantes` | Nombre, avatar, token e indicador de conexión |
 | `respuestas_participantes` | Una respuesta por participante y posición de pregunta |
-| `configuraciones` | Configuración general; proveedor fijado en Groq |
+| `configuraciones` | Configuración general con OpenRouter como proveedor de IA |
 | `borradores` | PDF y preguntas pendientes de aprobación |
 | `intentos_acceso` | Límite de intentos de ingreso por dirección de conexión |
 
@@ -53,17 +53,17 @@ El tiempo empleado se mide al recibir la respuesta en el servidor. Por ejemplo, 
 
 ## PDF e inteligencia artificial
 
-El flujo de carga valida tamaño, extensión, tipo real y cabecera PDF. El lector extrae texto y número de páginas. La pregunta generada debe contener un enunciado, cuatro opciones distintas, un índice correcto de 0 a 3 y una explicación. Se comprueba la cantidad solicitada y se vuelve a validar el contenido al guardar la revisión.
+El flujo de carga valida tamaño, extensión, tipo real y cabecera PDF. El lector extrae texto y número de páginas. Una pregunta nueva contiene un enunciado, cuatro opciones distintas, un índice correcto de 0 a 3 y una explicación. Se comprueba la cantidad solicitada y se vuelve a validar el contenido al guardar la revisión. Los borradores y las salas anteriores de dos opciones conservan su formato.
 
-Groq es el único proveedor. La clave y el modelo se leen de `GROQ_API_KEY` y `GROQ_MODEL` mediante el cargador existente del entorno. `ClienteGroq` maneja HTTPS, credenciales, metadatos del modelo, JSON y errores. `GeneradorGroq` organiza los lotes, el análisis por bloques y los reintentos acotados. `InteligenciaArtificial` conserva la validación compartida con la redacción manual.
+EvaluaEIC lee `OPENROUTER_API_KEY` y `OPENROUTER_MODEL` mediante el cargador del entorno. `ClienteOpenRouter` consulta el catálogo, adapta la solicitud al formato admitido por el modelo y traduce los errores del servicio. `GeneradorOpenRouter` organiza los lotes, el análisis por bloques y los reintentos acotados. `InteligenciaArtificial` valida las preguntas al generarlas y al guardarlas.
 
 Se solicita JSON Schema estricto. Si el modelo rechaza expresamente ese formato, la misma operación utiliza JSON Object con el mismo modelo; no cambia de modelo ni de proveedor. La validación local comprueba estructura, cantidad, opciones, índice correcto y duplicados incluso cuando se utilizó esquema estricto.
 
-Los documentos extensos se dividen por bytes sin romper UTF-8. Se recorre todo el texto de cada nivel y se condensan los bloques cuando el presupuesto lo exige. La interfaz informa que hubo análisis por bloques. El número de llamadas y el tiempo total están acotados; si el documento no cabe dentro de esos límites se rechaza, en lugar de procesar solamente el principio. El presupuesto de tokens es conservador y configurable; las cuotas de la organización siguen siendo las de Groq.
+Los documentos extensos se dividen por bytes sin romper UTF-8. Se recorre todo el texto de cada nivel y se condensan los bloques cuando el presupuesto lo exige. La interfaz informa que hubo análisis por bloques. Si el documento excede el tiempo total o el número de llamadas permitidas, el sistema pide dividirlo. El presupuesto es configurable y el consumo está sujeto a la cuota de OpenRouter.
 
 El material se delimita como contenido de referencia y el prompt indica que sus instrucciones internas no deben seguirse. La clave se transmite solamente en la cabecera Authorization por HTTPS y no se publica en la interfaz ni en los errores. Se mantiene la validación del certificado y no se siguen redirecciones. Los errores de autenticación, cuota, conexión y modelo son explícitos. No se reintentan automáticamente los errores de cuota.
 
-Los borradores se crean después de completar toda la generación. El guardado bloquea el borrador dentro de una transacción; repetir la misma solicitud devuelve el material ya guardado. Los resultados parciales de Groq no crean materiales definitivos.
+Los borradores se crean después de completar toda la generación. El guardado bloquea el borrador dentro de una transacción. Repetir la misma solicitud devuelve el material ya guardado.
 
 ## Alcance y siguientes ampliaciones posibles
 

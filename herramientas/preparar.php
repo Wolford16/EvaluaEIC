@@ -8,8 +8,8 @@ try {
     $motor=entorno('BD_MOTOR','sqlite');
     BaseDatos::conexion()->exec(file_get_contents(RAIZ.'/base_datos/esquema_'.($motor==='mysql'?'mysql':'sqlite').'.sql'));
     Migraciones::actualizarUsuarios();
-    if(!BaseDatos::ejecutar("SELECT nombre FROM configuraciones WHERE nombre='motor_ia'")->fetchColumn()) BaseDatos::ejecutar('INSERT INTO configuraciones (nombre,valor) VALUES (?,?)',['motor_ia','groq']);
-    else BaseDatos::ejecutar("UPDATE configuraciones SET valor='groq' WHERE nombre='motor_ia' AND valor<>'groq'");
+    if(!BaseDatos::ejecutar("SELECT nombre FROM configuraciones WHERE nombre='motor_ia'")->fetchColumn()) BaseDatos::ejecutar('INSERT INTO configuraciones (nombre,valor) VALUES (?,?)',['motor_ia','openrouter']);
+    else BaseDatos::ejecutar("UPDATE configuraciones SET valor='openrouter' WHERE nombre='motor_ia' AND valor<>'openrouter'");
     $nuevaInstalacion=(int)BaseDatos::ejecutar('SELECT COUNT(*) FROM usuarios')->fetchColumn()===0;
     if($nuevaInstalacion) {
         BaseDatos::transaccion(function(){

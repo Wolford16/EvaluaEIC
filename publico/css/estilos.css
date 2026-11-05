@@ -58,7 +58,6 @@ svg.icono {
 .ancho { width: 100%; }
 .fila-entre { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
 .grupo-botones { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.dos-columnas { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 20px; align-items: start; }
 .sobrelinea { display: block; font-size: 10px; font-weight: 700; letter-spacing: .12em; color: #526e8d; margin-bottom: 8px; }
 .panel { background: #fff; border: 1px solid var(--borde); border-radius: var(--radio); box-shadow: 0 3px 12px #042b6004; }
 .boton {
@@ -231,15 +230,15 @@ tr:hover td { background: #fbfdff; }
 .tarjeta-motor .boton { font-size: 10px; padding: 9px 10px; flex: 1; }
 .tarjeta-motor p.resultado-prueba:empty { display: none; }
 .tarjeta-motor p.resultado-prueba { margin-bottom: 0; font-size: 11px; }
-.configuracion-groq { border: 1px solid var(--borde); border-radius: 14px; padding: 24px; max-width: 760px; background: #f8fcfe; }
-.configuracion-groq h3 { margin: 0; font-size: 20px; }
-.datos-groq { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin: 24px 0 20px; }
-.datos-groq > div { padding: 15px 16px; border: 1px solid var(--borde); border-radius: 10px; background: #fff; min-width: 0; }
-.datos-groq dt { font-size: 11px; color: var(--suave); margin-bottom: 7px; }
-.datos-groq dd { margin: 0; color: var(--eic-marino); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
-.acciones-groq { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
-.configuracion-groq .resultado-prueba { font-size: 12px; color: var(--eic-marino); line-height: 1.7; margin: 18px 0 0; }
-.configuracion-groq .resultado-prueba:empty { display: none; }
+.configuracion-openrouter { border: 1px solid var(--borde); border-radius: 14px; padding: 24px; max-width: 760px; background: #f8fcfe; }
+.configuracion-openrouter h3 { margin: 0; font-size: 20px; }
+.datos-openrouter { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; margin: 24px 0 20px; }
+.datos-openrouter > div { padding: 15px 16px; border: 1px solid var(--borde); border-radius: 10px; background: #fff; min-width: 0; }
+.datos-openrouter dt { font-size: 11px; color: var(--suave); margin-bottom: 7px; }
+.datos-openrouter dd { margin: 0; color: var(--eic-marino); font-size: 13px; font-weight: 700; overflow-wrap: anywhere; }
+.acciones-openrouter { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+.configuracion-openrouter .resultado-prueba { font-size: 12px; color: var(--eic-marino); line-height: 1.7; margin: 18px 0 0; }
+.configuracion-openrouter .resultado-prueba:empty { display: none; }
 
 /* Ventanas: cabecera fija, cuerpo desplazable y acciones alineadas. */
 dialog {
@@ -266,11 +265,6 @@ dialog::backdrop { background: #021a3ab8; backdrop-filter: blur(3px); }
 .zona-archivo > span { font-size: 11px; color: #647f96; max-width: 100%; overflow-wrap: anywhere; }
 .zona-archivo input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .zona-archivo:focus-within, .zona-archivo.arrastrando { outline: 3px solid var(--eic-celeste); outline-offset: 2px; background: #e7f7ff; }
-.campo-grupo > label { margin-bottom: 8px; }
-.cantidad-opciones { display: grid; grid-template-columns: repeat(3,1fr) 66px; gap: 7px; }
-.cantidad-opciones .boton { min-height: 44px; padding: 10px; }
-.cantidad-opciones input { text-align: center; padding: 10px !important; }
-.cantidad-opciones .elegida { background: var(--eic-marino); border-color: var(--eic-marino); color: #fff; }
 .acciones-dialogo, .acciones-sala { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 12px; margin-top: 4px; }
 .acciones-dialogo .boton, .acciones-sala .boton { min-height: 44px; white-space: normal; }
 .pregunta-revision { border: 1px solid var(--borde); border-radius: 12px; padding: 20px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 15px; }
@@ -434,7 +428,7 @@ dialog::backdrop { background: #021a3ab8; backdrop-filter: blur(3px); }
   .cuadricula-materiales { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .cabecera-detalle { flex-direction: column; align-items: flex-start; }
   .cuadricula-motores { grid-template-columns: 1fr; }
-  .datos-groq { grid-template-columns: 1fr; gap: 12px; }
+  .datos-openrouter { grid-template-columns: 1fr; gap: 12px; }
   .tarjeta-motor .grupo-botones { max-width: 330px; margin-top: 14px; }
 }
 @media (max-width: 650px) {
@@ -471,7 +465,6 @@ dialog::backdrop { background: #021a3ab8; backdrop-filter: blur(3px); }
   .formulario-usuario { grid-template-columns: 1fr; padding: 18px; gap: 17px; }
   .acciones-formulario .boton { width: 100%; }
   .titulo-seccion h2 { font-size: 17px; }
-  .dos-columnas { grid-template-columns: 1fr; gap: 20px; }
   dialog { max-height: 92dvh; border-radius: 15px; }
   .cabecera-dialogo { padding: 18px 20px; gap: 12px; }
   .cabecera-dialogo h2 { font-size: 18px; }

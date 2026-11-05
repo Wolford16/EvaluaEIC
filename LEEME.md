@@ -42,52 +42,46 @@ Al iniciar una instalación anterior, la actualización convierte el correo en u
 
 ## Cargar tus propios PDF
 
-En **Cargar PDF**, selecciona un documento de hasta 12 MB, indica el título y el número de preguntas (de 1 a 30). Elige **Groq** o **Redacción manual**.
+En **Cargar PDF**, selecciona un documento de hasta 12 MB e indica el título. El formulario propone 10 preguntas y permite elegir una cantidad de 1 a 30. OpenRouter genera las preguntas automáticamente.
 
-Después de preparar el material, puedes editar los enunciados, las cuatro opciones, la respuesta correcta y la explicación, o eliminar preguntas. El documento entra en la biblioteca al pulsar **Guardar material**. Cerrar la revisión descarta ese borrador. Los borradores abandonados vencen después de 24 horas y se limpian al preparar el sistema.
+Después de preparar el material, puedes editar el enunciado, las cuatro opciones, la respuesta correcta y la explicación, o eliminar preguntas. El documento entra en la biblioteca al pulsar **Guardar material**. Cerrar la revisión descarta ese borrador. Los borradores abandonados vencen después de 24 horas y se limpian al preparar el sistema.
 
-La lectura de PDF usa Smalot/PdfParser. Los archivos deben contener texto seleccionable; no se incluye reconocimiento OCR. Groq analiza el texto con un presupuesto de entrada y salida. Los documentos extensos se dividen en bloques y se condensan antes de formular las preguntas; no se descarta silenciosamente el final. La revisión avisa cuando se utilizaron bloques. Si el documento supera el número de solicitudes o el tiempo permitido, se pide dividirlo. Una falla no se sustituye por preguntas ficticias.
+La lectura de PDF usa Smalot/PdfParser. Los archivos deben contener texto seleccionable. OpenRouter analiza el texto con un presupuesto de entrada y salida. Los documentos extensos se dividen en bloques y se condensan antes de formular las preguntas. La revisión avisa cuando se utilizaron bloques. Si el documento supera el número de solicitudes o el tiempo permitido, se pide dividirlo.
 
-## Configurar Groq
+## Configurar OpenRouter
 
-Groq es el único proveedor de IA. Completa estas dos líneas en el archivo privado `.env`:
+EvaluaEIC lee la clave y el modelo de OpenRouter del archivo privado `.env`:
 
 ```ini
-GROQ_API_KEY=tu_clave_privada
-GROQ_MODEL=identificador_exacto_del_modelo
+OPENROUTER_API_KEY=tu_clave_privada
+OPENROUTER_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
 ```
 
-Reinicia PHP después de cambiar el archivo. Para pasar a otro modelo de texto de Groq, modifica únicamente `GROQ_MODEL`. No hay selección ni rotación automática de proveedores. La redacción manual sigue disponible.
-
-El modelo debe estar habilitado para tu cuenta. Si aparece «modelo no disponible», comprueba los identificadores que ofrece tu cuenta en Groq Console: un nombre correcto puede pertenecer a un modelo retirado o restringido. Los [modelos publicados por Groq](https://console.groq.com/docs/models) también indican las restricciones de acceso.
+Para usar otro modelo de texto de OpenRouter, modifica `OPENROUTER_MODEL` y reinicia PHP. Usa el identificador exacto que figura en el [catálogo de OpenRouter](https://openrouter.ai/models). El sufijo `:free` identifica la variante gratuita.
 
 La clave y el modelo se pueden definir como variables del entorno del servidor. El cargador existente lee `.env` cuando una variable no está definida en el entorno. Ese archivo está fuera de la carpeta pública y excluido de Git. La clave no aparece en el navegador, en los errores ni en los diagnósticos.
 
 Primero comprueba PHP y HTTPS sin usar una clave:
 
 ```powershell
-C:\xampp\php\php.exe herramientas/probar_groq.php --solo-https
+C:\xampp\php\php.exe herramientas/probar_openrouter.php --solo-https
 ```
 
-Una respuesta HTTP 401 en esa comprobación es normal: confirma que Groq respondió por HTTPS a una petición sin credenciales. Después de completar las dos variables, comprueba la clave y el modelo con un texto breve:
+La primera comprobación consulta el catálogo público. Después de completar las dos variables, comprueba la clave y el modelo con un texto breve.
 
 ```powershell
-C:\xampp\php\php.exe herramientas/probar_groq.php
+C:\xampp\php\php.exe herramientas/probar_openrouter.php
 ```
 
-También puedes utilizar **Administración → Groq → Probar conexión**. Esta segunda prueba sí realiza una generación breve y consume algunos tokens. Comprueba el modelo, la respuesta JSON y la generación, además de la conexión.
+También puedes utilizar **Administración → OpenRouter → Probar conexión**. Esta prueba genera una respuesta breve y verifica la autenticación y el formato.
 
-La integración usa [Chat Completions](https://console.groq.com/docs/api-reference) y solicita [JSON Schema estricto](https://console.groq.com/docs/structured-outputs). Si Groq indica expresamente que ese modelo no admite el formato, adapta la petición a JSON Object usando el mismo modelo. PHP valida siempre la cantidad, los cuatro distractores/opciones, el índice de la respuesta correcta, la explicación y los enunciados repetidos.
+La integración usa Chat Completions y solicita un esquema JSON cuando el modelo lo admite. PHP comprueba la cantidad de preguntas, las cuatro opciones, el índice de la respuesta correcta, la explicación y los enunciados repetidos. [Formatos de respuesta de OpenRouter](https://openrouter.ai/docs/guides/features/structured-outputs).
 
-Los modelos GPT-OSS también consumen tokens para razonar antes de emitir el JSON. La integración utiliza esfuerzo bajo en esos modelos y reserva hasta 1 024 tokens para cada resumen, dentro del presupuesto de la solicitud. Esto evita que un resumen breve se quede sin margen de salida. La pantalla de revisión muestra las preguntas generadas, permite editar sus opciones y explicaciones y ofrece una papelera para descartarlas. Solo se guardan las preguntas que permanezcan al pulsar **Guardar material**.
+Los límites de tamaño, lotes y tiempo se configuran en `configuracion/openrouter.php`. El generador ajusta su presupuesto según la ventana y el máximo de salida del modelo. Agrupa hasta 10 preguntas por lote y permite un reintento acotado si el JSON es inválido o la salida queda incompleta.
 
-Los límites técnicos de tamaño, lotes y tiempo están centralizados en `configuracion/groq.php`. Los valores iniciales son conservadores: presupuesto de 6 000 unidades reservadas por petición, hasta tres preguntas por lote, 48 solicitudes y 150 segundos por operación. El presupuesto reserva entrada, esquema y salida; no convierte caracteres en un número exacto de tokens. Se ajusta a la ventana y al máximo de salida que informa Groq. Las cuotas de la cuenta pueden requerir un presupuesto menor.
-
-Groq devuelve errores diferenciados para clave inválida, modelo no disponible, formato incompatible, desconexión, respuesta incompleta y cuota. Una respuesta JSON inválida o incompleta permite un reintento acotado. Un error de cuota no se reintenta automáticamente; se muestra el plazo de espera cuando Groq lo indica. Cambiar el modelo no restablece necesariamente los [límites de la organización](https://console.groq.com/docs/rate-limits).
+Las variantes `:free` tienen límites de uso. Si se alcanza la cuota, la interfaz muestra la espera cuando OpenRouter la informa. [Cuotas de los modelos gratuitos](https://openrouter.ai/collections/free-models).
 
 El documento y sus preguntas se guardan como material definitivo únicamente cuando el docente aprueba el borrador. Reenviar el guardado del mismo borrador devuelve el material existente, sin duplicarlo.
-
-En este equipo se comprobaron la conexión HTTPS, la autenticación y la generación real con `openai/gpt-oss-20b` el 5 de noviembre de 2026. También se verificó el recorrido con `ejemplo.pdf`, de seis páginas: generación de ocho preguntas, edición, descarte de una y guardado de las siete restantes en una base separada para pruebas. El modelo anterior, `llama-3.1-8b-instant`, no aparecía entre los disponibles para esta cuenta. Las pruebas automáticas de errores y generación siguen utilizando un transporte simulado que no necesita credenciales reales.
 
 Para el traslado posterior, sigue `documentacion/instalacion_servidor.md`.
 
@@ -174,10 +168,10 @@ node pruebas/recorrido.mjs
 
 Requiere Node.js 20 o superior y PHP. Inicia su propio servidor en el puerto 8091 y usa una base SQLite aislada dentro de una carpeta temporal de `almacenamiento`. Elimina únicamente esa carpeta al terminar. Comprueba 56 condiciones del recorrido real por HTTP, incluyendo el acceso por usuario y contraseña, unicidad de usuarios, roles, PDF, salas, respuesta única, ocultación de soluciones, tiempos, puntaje y conservación del historial.
 
-Las pruebas específicas de Groq funcionan sin una clave real:
+Las pruebas específicas de OpenRouter funcionan con un transporte simulado.
 
 ```powershell
-C:\xampp\php\php.exe pruebas/groq.php
+C:\xampp\php\php.exe pruebas/openrouter.php
 ```
 
 La actualización de cuentas anteriores tiene una prueba independiente con 14 comprobaciones:

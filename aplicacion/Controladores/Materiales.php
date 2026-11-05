@@ -16,10 +16,10 @@ final class Materiales {
         return ['documento'=>$documento,'preguntas'=>$preguntas,'salas'=>$salas];
     }
     public static function preparar(array $usuario): array {
-        $cantidad=Seguridad::entero($_POST['cantidad']??5,1,30,'cantidad de preguntas');
+        $cantidad=Seguridad::entero($_POST['cantidad']??10,1,30,'cantidad de preguntas');
         $titulo=Seguridad::texto($_POST['titulo']??'',3,200,'Título');
-        $motor=Seguridad::texto($_POST['motor']??'groq',1,20,'Preparación');
-        if ($motor!=='manual') InteligenciaArtificial::validarMotor($motor);
+        $motor=Seguridad::texto($_POST['motor']??'openrouter',1,20,'Preparación');
+        InteligenciaArtificial::validarMotor($motor);
         $archivo=$_FILES['archivo']??null;
         if (!$archivo || $archivo['error']!==UPLOAD_ERR_OK) throw new ErrorAplicacion('Selecciona un PDF de hasta 12 MB. Si es grande, revisa los límites de PHP.');
         if ($archivo['size']>12*1024*1024 || $archivo['size']<5) throw new ErrorAplicacion('El PDF debe pesar como máximo 12 MB.');
@@ -31,12 +31,8 @@ final class Materiales {
         if (!move_uploaded_file($archivo['tmp_name'],$ruta)) throw new ErrorAplicacion('No se pudo guardar el archivo.',500);
         try {
             $lectura=LectorPdf::analizar($ruta);
-            $analisis=null;
-            if ($motor==='manual') $preguntas=array_fill(0,$cantidad,['enunciado'=>'','opciones'=>['','','',''],'correcta'=>0,'explicacion'=>'']);
-            else {
-                $generacion=InteligenciaArtificial::generar($lectura['texto'],$cantidad,$motor);
-                $preguntas=$generacion['preguntas']; $analisis=$generacion['analisis'];
-            }
+            $generacion=InteligenciaArtificial::generar($lectura['texto'],$cantidad);
+            $preguntas=$generacion['preguntas']; $analisis=$generacion['analisis'];
             BaseDatos::ejecutar('INSERT INTO borradores (token,usuario_id,titulo,nombre_archivo,ruta_archivo,tamano,paginas,preguntas_json,creado_en) VALUES (?,?,?,?,?,?,?,?,?)',[$token,$usuario['id'],$titulo,mb_substr(basename($archivo['name']),0,255),$token.'.pdf',$archivo['size'],$lectura['paginas'],json_encode($preguntas,JSON_UNESCAPED_UNICODE),microtime(true)]);
             return ['token'=>$token,'titulo'=>$titulo,'paginas'=>$lectura['paginas'],'preguntas'=>$preguntas,'analisis'=>$analisis];
         } catch (\Throwable $e) { if (is_file($ruta)) unlink($ruta); throw $e; }
@@ -44,8 +40,7 @@ final class Materiales {
     public static function guardar(array $datos,array $usuario): array {
         $token=Seguridad::texto($datos['token']??'',48,48,'Borrador');
         if (!ctype_xdigit($token)) throw new ErrorAplicacion('El identificador del borrador no es válido.');
-        $preguntas=InteligenciaArtificial::validarPreguntas($datos['preguntas']??[]);
-        return BaseDatos::transaccion(function() use ($token,$preguntas,$usuario,$datos) {
+        return BaseDatos::transaccion(function() use ($token,$usuario,$datos) {
             $esMysql=BaseDatos::conexion()->getAttribute(\PDO::ATTR_DRIVER_NAME)==='mysql';
             if (!$esMysql) BaseDatos::ejecutar('UPDATE borradores SET token=token WHERE token=? AND usuario_id=?',[$token,$usuario['id']]);
             $b=BaseDatos::ejecutar('SELECT * FROM borradores WHERE token=? AND usuario_id=?'.($esMysql?' FOR UPDATE':''),[$token,$usuario['id']])->fetch();
@@ -55,6 +50,9 @@ final class Materiales {
                 throw new ErrorAplicacion('El borrador venció. Vuelve a cargar el PDF.',404);
             }
             if (microtime(true)-$b['creado_en']>86400) throw new ErrorAplicacion('El borrador venció. Vuelve a cargar el PDF.',404);
+            $originales=json_decode($b['preguntas_json'],true);
+            $cantidadOpciones=count($originales[0]['opciones']??[])===2 ? 2 : 4;
+            $preguntas=InteligenciaArtificial::validarPreguntas($datos['preguntas']??[],$cantidadOpciones);
             $titulo=Seguridad::texto($datos['titulo']??$b['titulo'],3,200,'Título');
             BaseDatos::ejecutar('INSERT INTO documentos (titulo,nombre_archivo,ruta_archivo,tamano,paginas,subido_por_id,creado_en) VALUES (?,?,?,?,?,?,?)',[$titulo,$b['nombre_archivo'],$b['ruta_archivo'],$b['tamano'],$b['paginas'],$usuario['id'],date('Y-m-d H:i:s')]);
             $id=(int)BaseDatos::conexion()->lastInsertId();
