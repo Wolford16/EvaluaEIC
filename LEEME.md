@@ -79,13 +79,15 @@ También puedes utilizar **Administración → Groq → Probar conexión**. Esta
 
 La integración usa [Chat Completions](https://console.groq.com/docs/api-reference) y solicita [JSON Schema estricto](https://console.groq.com/docs/structured-outputs). Si Groq indica expresamente que ese modelo no admite el formato, adapta la petición a JSON Object usando el mismo modelo. PHP valida siempre la cantidad, los cuatro distractores/opciones, el índice de la respuesta correcta, la explicación y los enunciados repetidos.
 
+Los modelos GPT-OSS también consumen tokens para razonar antes de emitir el JSON. La integración utiliza esfuerzo bajo en esos modelos y reserva hasta 1 024 tokens para cada resumen, dentro del presupuesto de la solicitud. Esto evita que un resumen breve se quede sin margen de salida. La pantalla de revisión muestra las preguntas generadas, permite editar sus opciones y explicaciones y ofrece una papelera para descartarlas. Solo se guardan las preguntas que permanezcan al pulsar **Guardar material**.
+
 Los límites técnicos de tamaño, lotes y tiempo están centralizados en `configuracion/groq.php`. Los valores iniciales son conservadores: presupuesto de 6 000 unidades reservadas por petición, hasta tres preguntas por lote, 48 solicitudes y 150 segundos por operación. El presupuesto reserva entrada, esquema y salida; no convierte caracteres en un número exacto de tokens. Se ajusta a la ventana y al máximo de salida que informa Groq. Las cuotas de la cuenta pueden requerir un presupuesto menor.
 
 Groq devuelve errores diferenciados para clave inválida, modelo no disponible, formato incompatible, desconexión, respuesta incompleta y cuota. Una respuesta JSON inválida o incompleta permite un reintento acotado. Un error de cuota no se reintenta automáticamente; se muestra el plazo de espera cuando Groq lo indica. Cambiar el modelo no restablece necesariamente los [límites de la organización](https://console.groq.com/docs/rate-limits).
 
 El documento y sus preguntas se guardan como material definitivo únicamente cuando el docente aprueba el borrador. Reenviar el guardado del mismo borrador devuelve el material existente, sin duplicarlo.
 
-En este equipo se comprobaron la conexión HTTPS, la autenticación y la generación real de cinco preguntas con `openai/gpt-oss-20b` el 5 de noviembre de 2026. El modelo anterior, `llama-3.1-8b-instant`, no aparecía entre los disponibles para esta cuenta. Las pruebas automáticas de errores y generación siguen utilizando un transporte simulado que no necesita credenciales reales.
+En este equipo se comprobaron la conexión HTTPS, la autenticación y la generación real con `openai/gpt-oss-20b` el 5 de noviembre de 2026. También se verificó el recorrido con `ejemplo.pdf`, de seis páginas: generación de ocho preguntas, edición, descarte de una y guardado de las siete restantes en una base separada para pruebas. El modelo anterior, `llama-3.1-8b-instant`, no aparecía entre los disponibles para esta cuenta. Las pruebas automáticas de errores y generación siguen utilizando un transporte simulado que no necesita credenciales reales.
 
 Para el traslado posterior, sigue `documentacion/instalacion_servidor.md`.
 

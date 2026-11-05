@@ -58,6 +58,35 @@ comprobar($peticiones[1]['datos']['response_format']['json_schema']['schema']['a
 comprobar($peticiones[1]['cabeceras'][0] === 'Authorization: Bearer clave-ficticia-para-pruebas', 'Autentica mediante cabecera.');
 comprobar($peticiones[1]['datos']['max_completion_tokens'] > 0, 'Define un límite de salida.');
 comprobar(!array_key_exists('api_key', $peticiones[1]['datos']), 'La clave no va en el JSON.');
+comprobar(!array_key_exists('reasoning_effort', $peticiones[1]['datos']), 'No impone opciones de razonamiento a modelos que no las admiten.');
+
+// El fallo del PDF real ocurría al resumir con una salida demasiado corta.
+putenv('GROQ_MODEL=openai/gpt-oss-20b');
+$peticionesRazonamiento = [];
+$clienteRazonamiento = new ClienteGroq(simulador($peticionesRazonamiento, static function(array $datos): ?array {
+    if (str_contains($datos['messages'][0]['content'], '{"resumen":')
+        && (($datos['max_completion_tokens'] ?? 0) < 1024 || ($datos['reasoning_effort'] ?? '') !== 'low')) {
+        return respuesta(['error'=>['code'=>'json_validate_failed']], 400);
+    }
+    return null;
+}));
+$resultadoRazonamiento = (new GeneradorGroq($clienteRazonamiento))->generar(str_repeat($textoCorto, 25), 8);
+comprobar(count($resultadoRazonamiento['preguntas']) === 8 && $resultadoRazonamiento['analisis']['resumido'], 'Genera ocho preguntas de un PDF por bloques con margen para el razonamiento.');
+$chatsRazonamiento = array_values(array_filter($peticionesRazonamiento, fn($p)=>$p['datos'] !== null));
+comprobar(count(array_filter($chatsRazonamiento, fn($p)=>($p['datos']['reasoning_effort'] ?? '') !== 'low')) === 0, 'GPT-OSS usa esfuerzo bajo en resúmenes y preguntas.');
+putenv('GROQ_MODEL=modelo-de-prueba');
+
+$peticionesResumen = [];
+$falloResumen = false;
+$clienteResumen = new ClienteGroq(simulador($peticionesResumen, static function(array $datos) use (&$falloResumen): ?array {
+    if (!$falloResumen && str_contains($datos['messages'][0]['content'], '{"resumen":')) {
+        $falloResumen = true;
+        return respuesta(['error'=>['code'=>'json_validate_failed']], 400);
+    }
+    return null;
+}));
+$resultadoResumen = (new GeneradorGroq($clienteResumen))->generar(str_repeat($textoCorto, 25), 8);
+comprobar($falloResumen && count($resultadoResumen['preguntas']) === 8, 'Un fallo transitorio de JSON al resumir se recupera sin perder la generación.');
 
 $peticiones = [];
 $textoLargo = str_repeat("Párrafo docente: el indicio se identifica, se embala y cada entrega queda documentada.\n", 650) . 'ULTIMO_TEMA_DEL_DOCUMENTO_987';

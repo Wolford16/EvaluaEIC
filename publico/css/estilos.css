@@ -275,12 +275,17 @@ dialog::backdrop { background: #021a3ab8; backdrop-filter: blur(3px); }
 .acciones-dialogo .boton, .acciones-sala .boton { min-height: 44px; white-space: normal; }
 .pregunta-revision { border: 1px solid var(--borde); border-radius: 12px; padding: 20px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 15px; }
 .pregunta-revision .sobrelinea { margin: 0; }
-.opciones-revision { display: flex; flex-direction: column; gap: 9px; }
+.resumen-revision { margin: 0 0 18px; }
+.resumen-revision strong, .resumen-revision span { display: block; }
+.resumen-revision strong { color: var(--eic-marino); margin-bottom: 3px; }
+.opciones-revision { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
 .opcion-revision { display: flex; flex-direction: row; align-items: center; gap: 10px; background: #f7fafc; padding: 9px 11px; border: 1px solid var(--borde); border-radius: 9px; }
 .opcion-revision:has(input[type=radio]:checked) { background: #edf8f2; border-color: #b7dcca; }
 .opcion-revision > input[type=radio] { accent-color: var(--verde); flex-shrink: 0; }
-.opcion-revision > input:not([type=radio]) { border: 0; background: transparent; padding: 5px; min-height: 30px; }
+.opcion-revision > textarea { border: 0; background: transparent; padding: 5px; min-height: 54px; resize: vertical; line-height: 1.5; }
 .opcion-revision > b { font-size: 12px; color: #57718c; }
+.explicacion-revision summary { color: var(--suave); font-size: 12px; font-weight: 600; cursor: pointer; }
+.explicacion-revision[open] summary { margin-bottom: 12px; }
 .pie-revision { position: sticky; bottom: -24px; background: #fff; padding: 18px 0 0; display: flex; justify-content: space-between; align-items: center; gap: 14px; border-top: 1px solid var(--borde); }
 .pie-revision > span { font-size: 12px; color: var(--suave); }
 .cargando { display: inline-block; width: 14px; height: 14px; border: 2px solid #ffffff55; border-top-color: white; border-radius: 50%; animation: girar .8s linear infinite; flex-shrink: 0; }
@@ -459,7 +464,7 @@ dialog::backdrop { background: #021a3ab8; backdrop-filter: blur(3px); }
   .cabecera-detalle h2 { font-size: 17px; }
   .pestanas { padding: 0 18px; gap: 20px; }
   .pestanas button { font-size: 11px; }
-  .opciones-doc { grid-template-columns: 1fr; }
+  .opciones-doc, .opciones-revision { grid-template-columns: 1fr; }
   .pregunta-doc { padding: 16px; }
   .pestanas-admin { margin: 18px 0; padding: 0 17px; gap: 22px; }
   .contenido-admin { padding: 20px 16px; }

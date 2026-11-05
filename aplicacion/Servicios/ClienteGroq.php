@@ -55,6 +55,11 @@ final class ClienteGroq {
                 ? ['type' => 'json_schema', 'json_schema' => ['name' => 'evaluaeic', 'strict' => true, 'schema' => $esquema]]
                 : ['type' => 'json_object'],
         ];
+        // Estos modelos reservan parte de la salida para razonar. Un esfuerzo bajo
+        // deja más margen para el JSON sin enviar parámetros ajenos a otros modelos.
+        if (in_array($this->modelo, ['openai/gpt-oss-20b', 'openai/gpt-oss-120b'], true)) {
+            $datos['reasoning_effort'] = 'low';
+        }
         try {
             $respuesta = $this->solicitar('/chat/completions', $datos, $tiempo);
         } catch (ErrorAplicacion $error) {

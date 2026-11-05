@@ -8,7 +8,8 @@ return [
     'presupuesto_tokens' => 6000,
     'preguntas_por_lote' => 3,
     'tokens_por_pregunta' => 650,
-    'tokens_resumen' => 500,
+    // Incluye el razonamiento del modelo y el JSON del resumen, no solo su texto visible.
+    'tokens_resumen' => 1024,
     'bytes_resumen' => 800,
     'max_solicitudes' => 48,
     'tiempo_total' => 150,
