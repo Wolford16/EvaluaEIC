@@ -1,0 +1,9 @@
+/.env
+/almacenamiento/*
+!/almacenamiento/.gitkeep
+/terceros/
+/herramientas/composer.phar
+/herramientas/composer-instalador.php
+/herramientas/composer-instalador.sha384
+*.log
+/tmp/

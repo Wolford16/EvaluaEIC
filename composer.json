@@ -1,0 +1,8 @@
+{
+  "name": "evaluaia/plataforma-local",
+  "description": "Evaluaciones interactivas en PHP",
+  "type": "project",
+  "require": {"php": ">=8.2", "ext-pdo": "*", "ext-mbstring": "*", "ext-fileinfo": "*", "ext-curl": "*", "smalot/pdfparser": "^2.12"},
+  "config": {"vendor-dir": "terceros", "sort-packages": true},
+  "autoload": {"psr-4": {"EvaluaIA\\": "aplicacion/"}}
+}

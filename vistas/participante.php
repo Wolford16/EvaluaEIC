@@ -1,0 +1,2 @@
+<header class="cabecera-participante"><a class="marca" href="/participar"><img class="logo-cabecera" src="/imagenes/logo-eic.png" alt="Escuela de Investigación Criminal" width="48" height="48"><span><strong>Evalua<span class="azul">EIC</span></strong><small>Evaluaciones</small></span></a><a class="enlace-suave" href="/ingreso">Acceso institucional</a></header>
+<main id="experiencia-participante" class="experiencia-participante" aria-live="polite"></main>

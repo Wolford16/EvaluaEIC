@@ -1,0 +1,326 @@
+ESPECIFICACIÓN TÉCNICA Y ARQUITECTURA MAESTRA DEL SISTEMA (EVALUAIA)
+Esta guía documenta al detalle cada componente, flujo, regla de negocio, estructura de datos y comportamiento del prototipo para que puedas replicarlo fielmente en PHP (con MySQL/PostgreSQL y JavaScript/WebSockets o Polling).
+1. VISIÓN GENERAL Y FILOSOFÍA DEL PRODUCTO
+El sistema es una plataforma institucional de evaluaciones interactivas impulsadas por Inteligencia Artificial, concebida para la enseñanza y el entrenamiento en cátedras especializadas (por ejemplo, investigación penal, criminalística o ciencias jurídicas).
+Principios Fundamentales:
+Simplicidad ante todo: Sin paneles saturados, sin métricas innecesarias (KPIs decorativos). Solo herramientas directas de trabajo.
+Extracción con IA a demanda: El docente sube un material en PDF, configura cuántas preguntas desea (3, 5, 8, etc.) y la IA genera preguntas de opción múltiple con su respectiva respuesta correcta y justificación.
+Curaduría docente: El docente revisa las preguntas generadas y puede descartar las que no considere pertinentes antes de guardar el material.
+Acceso instantáneo mediante QR / Código: Los estudiantes o participantes no requieren usuario ni contraseña. Escanean el QR o ingresan el código de sala, eligen su nombre, seleccionan un avatar visual y quedan en sala de espera.
+Sincronización justa por pregunta:
+Cada pregunta tiene un tiempo límite configurable (ej. 15s, 20s, 30s).
+Cuando un alumno responde, su opción se bloquea, pero la pregunta NO avanza inmediatamente. Espera a que el tiempo límite llegue a cero para todos.
+Al terminar el tiempo de la pregunta, se activa una fase de retroalimentación de 4 segundos: se revela si fue correcta o incorrecta, se destaca la opción acertada, se suman los puntos y un contador regresivo de 4 segundos pasa automáticamente a la siguiente pregunta.
+Podio y Ranking Competitivo: Al finalizar la última pregunta, se calcula el ranking ordenado por porcentaje de aciertos, puntos obtenidos y tiempo de respuesta, mostrando el podio de los 3 primeros lugares y la tabla general de posiciones.
+2. ROLES DEL SISTEMA Y CONTROL DE ACCESO
+Solo existen 3 roles, de los cuales solo 2 tienen credenciales de inicio de sesión:
+Rol	¿Tiene Cuenta?	Acceso / Vistas	Responsabilidades
+Administrador	Sí (Login institucional)	Panel Administrativo Simple (/admin)	- Gestión de usuarios (Crear docentes/supervisores y alternar estado activo/inactivo).
+- Visualización de documentos PDF cargados institucionalmente y quién los subió.
+- Ver historial de Evaluaciones y QR, accediendo al ranking de participantes ordenados de mayor a menor porcentaje.
+- Diagnóstico y conmutación de motores de IA (Gemini, Ollama, DeepSeek).
+Docente / Supervisor	Sí (Creado por el Admin)	Panel de Cátedra (/docente)	- Cargar Documento PDF: selecciona archivo, páginas estimadas y número de preguntas deseadas.
+- Revisión de IA: verifica las preguntas generadas y elimina las que no le gusten.
+- Mis Documentos y Material de Cátedra: ve las tarjetas identificativas de cada PDF (cerradas por defecto). Al hacer clic en una tarjeta, se expande para ver sus preguntas, lista de alumnos conectados y ranking.
+- Lanzar Examen QR: genera código de sala y QR con tiempo configurable por pregunta e inicia la actividad en vivo.
+Participante / Estudiante	NO (Acceso anónimo)	Interfaz de Evaluación (/sala/{codigo})	- Escanea el QR o ingresa PIN.
+- Escribe su nombre y escoge un avatar gráfico.
+- Sala de espera interactiva.
+- Examen en vivo sincronizado con retroalimentación de 4 segundos por pregunta.
+- Visualización del ranking y podio final al culminar.
+3. MODELO DE DATOS RECOMENDADO (BASE DE DATOS RELACIONAL / MYSQL)
+Para implementar esto en PHP y MySQL, la base de datos se estructura en 6 tablas principales:
+3.1. Tabla usuarios
+Almacena al Administrador y a los Docentes/Supervisores creados.
+SQL
+CREATE TABLE usuarios (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(120) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    rol ENUM('admin', 'docente') NOT NULL DEFAULT 'docente',
+    estado ENUM('activo', 'inactivo') NOT NULL DEFAULT 'activo',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+3.2. Tabla documentos
+Almacena la metadata del PDF subido por el docente.
+SQL
+CREATE TABLE documentos (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    titulo VARCHAR(200) NOT NULL,
+    nombre_archivo VARCHAR(255) NOT NULL,
+    ruta_archivo VARCHAR(255) NOT NULL,
+    tamano_archivo VARCHAR(50) NOT NULL,
+    paginas INT NOT NULL DEFAULT 1,
+    subido_por_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (subido_por_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+3.3. Tabla preguntas
+Preguntas generadas por la IA y aprobadas/guardadas por el docente.
+SQL
+CREATE TABLE preguntas (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    documento_id INT NOT NULL,
+    enunciado TEXT NOT NULL,
+    opcion_a TEXT NOT NULL,
+    opcion_b TEXT NOT NULL,
+    opcion_c TEXT NOT NULL,
+    opcion_d TEXT NOT NULL,
+    opcion_correcta INT NOT NULL, -- 0 para A, 1 para B, 2 para C, 3 para D
+    explicacion TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (documento_id) REFERENCES documentos(id) ON DELETE CASCADE
+);
+3.4. Tabla salas_evaluacion
+Representa una sesión o examen en vivo creado a partir de un documento.
+SQL
+CREATE TABLE salas_evaluacion (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    documento_id INT NOT NULL,
+    codigo_sala VARCHAR(10) NOT NULL UNIQUE, -- Ej: 'EVAL-5820'
+    creado_por_id INT NOT NULL,
+    tiempo_por_pregunta INT NOT NULL DEFAULT 20, -- segundos (15, 20, 30)
+    estado ENUM('espera', 'en_curso', 'finalizada') NOT NULL DEFAULT 'espera',
+    pregunta_actual INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (documento_id) REFERENCES documentos(id) ON DELETE CASCADE,
+    FOREIGN KEY (creado_por_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+3.5. Tabla participantes
+Alumnos que se han unido a una sala específica con su avatar.
+SQL
+CREATE TABLE participantes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    sala_id INT NOT NULL,
+    nombre VARCHAR(100) NOT NULL,
+    avatar_id VARCHAR(50) NOT NULL,
+    avatar_emoji VARCHAR(10) NOT NULL,
+    avatar_bg VARCHAR(50) NOT NULL,
+    puntuacion_total INT NOT NULL DEFAULT 0,
+    aciertos INT NOT NULL DEFAULT 0,
+    tiempo_total_segundos INT NOT NULL DEFAULT 0,
+    finalizado BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (sala_id) REFERENCES salas_evaluacion(id) ON DELETE CASCADE
+);
+3.6. Tabla respuestas_participantes
+Registro individual de cada respuesta dada por un participante a una pregunta.
+SQL
+CREATE TABLE respuestas_participantes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    participante_id INT NOT NULL,
+    pregunta_id INT NOT NULL,
+    opcion_elegida INT NULL, -- NULL si se agotó el tiempo sin responder
+    es_correcta BOOLEAN NOT NULL DEFAULT FALSE,
+    tiempo_respuesta_segundos INT NOT NULL,
+    puntos_obtenidos INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (participante_id) REFERENCES participantes(id) ON DELETE CASCADE,
+    FOREIGN KEY (pregunta_id) REFERENCES preguntas(id) ON DELETE CASCADE
+);
+4. DETALLE DE MÓDULOS Y VISTAS
+4.1. Módulo del Administrador (AdminSimpleView.tsx)
+El administrador cuenta con 4 pestañas sencillas:
+Documentos PDF:
+Listado limpio de todos los documentos cargados en la institución.
+Cada fila muestra: Título del documento, archivo PDF, docente que lo subió, fecha, total de preguntas y un botón de eliminación.
+Gestión de Usuarios:
+Formulario directo: Nombre completo, Correo electrónico y Rol (Docente o Administrador).
+Tabla de usuarios con botón para cambiar estado (Activo / Inactivo) y credencial asignada.
+Evaluaciones y QR (Ranking de Participantes):
+No muestra las preguntas; muestra el nombre del material PDF.
+Al hacer clic en un material, despliega la lista de participantes ordenados de mayor a menor porcentaje de aciertos (%).
+Muestra podio para los 3 primeros lugares, y en la tabla: Posición, Avatar, Nombre, Porcentaje de Aciertos (ej. 100%, 75%), Preguntas correctas y Puntos.
+Motores de IA:
+Selector visual de motor activo: Google Gemini 1.5 Pro, Ollama Local (Llama 3) o DeepSeek Coder.
+Botón para probar latencia de conexión (ping en milisegundos).
+4.2. Módulo de Docente / Supervisor (DocenteMaterialView.tsx y UploadDocumentModal.tsx)
+Este módulo implementa dos flujos clave:
+A. Carga de Documento y Generación con IA (UploadDocumentModal.tsx)
+Paso 1: Configuración:
+El docente arrastra o selecciona un archivo .pdf.
+Configuración de preguntas: Define la cantidad de preguntas a generar mediante botones rápidos (3, 5, 8) o un campo numérico.
+Selecciona el motor de IA (Gemini u Ollama).
+Paso 2: Procesamiento Simulada/Real con IA:
+Muestra barra de progreso mientras analiza el documento y formula las preguntas solicitadas.
+Paso 3: Revisión Curatorial Inmediata:
+Se muestran las preguntas generadas una por una con sus 4 opciones y la respuesta correcta resaltada.
+Si alguna pregunta no le gusta o está fuera de contexto, tiene un botón de bote de basura para eliminarla.
+Al hacer clic en "Guardar Material de Cátedra", el documento y sus preguntas definitivas se almacenan en la base de datos.
+B. Mis Documentos y Material de Cátedra (DocenteMaterialView.tsx)
+Comportamiento de las Tarjetas:
+Al entrar, el menú de preguntas NO está abierto por defecto.
+Solo se muestra la cuadrícula de tarjetas de los PDFs cargados.
+Cada tarjeta contiene: Icono de PDF, título del material, nombre del archivo, páginas, total de preguntas y un indicador de acción.
+Al hacer clic en una tarjeta: Se abre el panel detallado de ese material con sus 3 apartados:
+1. Preguntas: Visualización y opción de eliminar preguntas específicas.
+2. Participantes: Lista de alumnos conectados o registrados.
+3. Ranking y Resultados: Podio interactivo y tabla de posiciones.
+Al volver a hacer clic sobre la tarjeta (o en el botón "Cerrar para ver solo las tarjetas"): Se repliega el panel y vuelven a quedar únicamente las tarjetas visibles.
+Lanzar Sala QR / Examen:
+Botón visible en el material activo.
+Abre un modal con el código QR, el código alfanumérico de sala (ej. EVAL-5820) y el selector de tiempo por pregunta (15s, 20s o 30s).
+Incluye el contador de alumnos conectados en tiempo real y el botón verde "Iniciar Actividad".
+4.3. Módulo del Participante / Alumno (ParticipantExperience.tsx)
+Este módulo funciona en pantalla completa, adaptado a móviles y tablets:
+Paso 1: Registro Rápido:
+Escribe su nombre.
+Selecciona un avatar de una galería visual (con emojis identificativos como 🕵️‍♂️, 🔍, ⚖️, 🛡️ y colores distintivos).
+Hace clic en "Entrar a la Sala".
+Paso 2: Sala de Espera:
+Muestra el nombre del examen y del profesor.
+Muestra el número de alumnos conectados con una animación de pulso.
+Permite al docente dar la orden de inicio (o auto-iniciar si es prueba local).
+Paso 3: Examen en Vivo (Lógica de Tiempos y Revelación):
+Barra superior: Número de pregunta actual (1 de 4), temporizador regresivo (20s) y puntaje acumulado.
+Opciones de respuesta: 4 tarjetas de colores (Rojo, Azul, Ámbar, Verde) correspondientes a las opciones A, B, C y D.
+Selección de respuesta:
+El alumno toca una opción.
+Dicha opción queda seleccionada con un icono de candado (Elegida).
+IMPORTANTE: La pantalla no avanza; el temporizador de la pregunta continúa descontando hasta llegar a cero para que todos los alumnos tengan exactamente el mismo tiempo.
+Fase de Retroalimentación de 4 Segundos:
+En el instante en que el temporizador llega a 0s:
+Se bloquea la pantalla.
+Se calcula la puntuación en base a precisión y tiempo.
+Si acertó: marco verde esmeralda, suma de puntos y animación de confeti.
+Si falló: marco rojo carmesí y se indica con claridad cuál era la opción correcta.
+Contador regresivo de 4 segundos: Un badge muestra 4s, 3s, 2s, 1s con una barra de progreso animada.
+Un botón opcional "Avanzar ya" permite continuar sin esperar los 4 segundos si el alumno lo desea.
+Transición a la Siguiente Pregunta:
+Al agotarse los 4 segundos, el sistema pasa a la pregunta siguiente, reseteando las variables locales del temporizador.
+Paso 4: Ranking y Podio Final:
+Al terminar la última pregunta, se despliega el podio de los 3 primeros lugares (Oro, Plata, Bronce) con sus avatares, nombres y puntuación, seguido de la tabla completa de posiciones.
+5. ALGORITMO DE PUNTUACIÓN Y TIEMPOS
+El algoritmo que calcula el puntaje de cada pregunta recompensa la precisión combinada con la velocidad de respuesta:
+Code
+Si la respuesta es INCORRECTA o NO SE RESPONDIÓ:
+   Puntos = 0
+
+Si la respuesta es CORRECTA:
+   Puntos Base = 500
+   Bonificación por Velocidad = Redondear( (1 - (tiempo_empleado / tiempo_maximo)) * 500 )
+   Puntos Ganados = Puntos Base + Bonificación por Velocidad
+Ejemplo: En una pregunta con 20 segundos de tiempo límite, si un alumno responde en 5 segundos correctamente, obtiene:
+.
+6. GUÍA DE IMPLEMENTACIÓN PARA PHP
+Para migrar esta arquitectura a PHP de manera limpia, utiliza la siguiente estructura recomendada:
+6.1. Estructura de Carpetas del Proyecto PHP
+Code
+evalua-ia/
+├── config/
+│   └── database.php         # Conexión PDO a MySQL
+├── controllers/
+│   ├── AuthController.php   # Login de Admin y Docente
+│   ├── DocumentController.php # Subida de PDF y parseo
+│   ├── ExamController.php   # Creación de sala y gestión de preguntas
+│   └── RoomController.php   # Registro de alumnos y respuestas en vivo
+├── services/
+│   ├── AiService.php        # Integración con Gemini API / Ollama local
+│   └── PdfParserService.php # Extracción de texto del PDF (usando Smalot/PdfParser o pdftotext)
+├── api/
+│   ├── get_room_state.php   # Polling de sala (estado, participantes, pregunta actual)
+│   ├── submit_answer.php    # Registro de la opción elegida por el alumno
+│   └── generate_ai.php      # Endpoint que llama a la IA para obtener JSON de preguntas
+├── views/
+│   ├── admin/               # Plantillas PHP del Administrador
+│   ├── docente/             # Plantillas PHP del Docente / Cátedra
+│   └── participante/        # Vistas móviles del Examen y Ranking
+└── public/
+    ├── css/                 # Tailwind CSS compilado o Bootstrap 5
+    └── js/
+        ├── exam_runner.js   # Script JS que maneja el temporizador de 20s y el de 4s
+        └── qr_generator.js  # Librería JS para dibujar el QR (qrcode.js)
+6.2. Integración de la IA en PHP (AiService.php)
+Para generar las preguntas mediante la API de Gemini u Ollama desde PHP, se envía un prompt estructurado exigiendo una respuesta estrictamente en formato JSON:
+PHP
+<?php
+class AiService {
+    public static function generarPreguntas($textoPdf, $cantidadPreguntas = 4) {
+        $apiKey = getenv('GEMINI_API_KEY');
+        $url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=" . $apiKey;
+
+        $prompt = "Eres un perito forense y profesor universitario. Analiza el siguiente texto de cátedra y formula exactamente {$cantidadPreguntas} preguntas de examen de opción múltiple con 4 opciones (A, B, C, D), indicando cuál es la correcta (índice 0 a 3) y una breve explicación. Devuelve ÚNICAMENTE un array JSON válido con la estructura: [{\"prompt\": \"...\", \"options\": [\"A\", \"B\", \"C\", \"D\"], \"correctOptionIndex\": 0, \"explanation\": \"...\"}]. Texto:\n\n" . substr($textoPdf, 0, 8000);
+
+        $payload = [
+            "contents" => [
+                ["parts" => [["text" => $prompt]]]
+            ],
+            "generationConfig" => [
+                "response_mime_type" => "application/json"
+            ]
+        ];
+
+        $ch = curl_init($url);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['Content-Type: application/json']);
+        
+        $response = curl_exec($ch);
+        curl_close($ch);
+
+        $json = json_decode($response, true);
+        $rawText = $json['candidates'][0]['content']['parts'][0]['text'] ?? '[]';
+        return json_decode($rawText, true);
+    }
+}
+6.3. Script del Temporizador y Transición en JavaScript (exam_runner.js)
+Para recrear fielmente la experiencia del alumno en el frontend de PHP:
+JavaScript
+let timeLeft = 20; // Tiempo de la pregunta
+let isTimeOver = false;
+let selectedOption = null;
+let currentQIndex = 0;
+let totalQuestions = 4;
+
+// 1. Temporizador de respuesta
+const questionTimer = setInterval(() => {
+    if (timeLeft > 0 && !isTimeOver) {
+        timeLeft--;
+        document.getElementById('timer-display').innerText = timeLeft + 's';
+        if (timeLeft === 0) {
+            finalizarTiempoPregunta();
+        }
+    }
+}, 1000);
+
+function seleccionarOpcion(indice) {
+    if (isTimeOver) return;
+    selectedOption = indice;
+    // Bloquear visualmente la tarjeta elegida
+    marcarOpcionElegidaEnUI(indice);
+}
+
+function finalizarTiempoPregunta() {
+    isTimeOver = true;
+    clearInterval(questionTimer);
+    
+    // Revelar si fue correcto o incorrecto
+    mostrarRetroalimentacionUI(selectedOption);
+
+    // 2. Temporizador de 4 segundos antes de pasar a la siguiente
+    let revealTime = 4;
+    const feedbackTimer = setInterval(() => {
+        revealTime--;
+        document.getElementById('countdown-feedback').innerText = revealTime + 's';
+        if (revealTime <= 0) {
+            clearInterval(feedbackTimer);
+            avanzarSiguientePregunta();
+        }
+    }, 1000);
+}
+
+function avanzarSiguientePregunta() {
+    if (currentQIndex + 1 >= totalQuestions) {
+        window.location.href = 'ranking.php';
+    } else {
+        window.location.href = 'pregunta.php?q=' + (currentQIndex + 1);
+    }
+}
+7. RESUMEN DE COMPROBACIONES CLAVE PARA TU VERSIÓN EN PHP
+Sin menús abiertos por defecto: Las tarjetas de cada PDF en la vista del docente deben presentarse colapsadas; solo al hacer clic se despliega la sección de preguntas y ranking, y un segundo clic las repliega.
+Selector de cantidad de preguntas: El docente debe poder indicar explícitamente cuántas preguntas generar antes de que la IA procese el archivo.
+El tiempo manda: El alumno nunca debe poder saltar a la siguiente pregunta antes de que expire el tiempo configurado por el docente, garantizando una competencia justa.
+4 segundos de revelación: Es indispensable la ventana de 4 segundos con la respuesta correcta señalada antes de que cargue la siguiente pregunta.
+Ranking limpio: La lista de resultados debe ordenarse directamente por porcentaje de acierto de mayor a menor.
