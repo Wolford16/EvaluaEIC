@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__) . '/configuracion/aplicacion.php';
 use EvaluaEIC\Servicios\{Seguridad, BaseDatos, Evaluacion, InteligenciaArtificial, ErrorAplicacion};
-use EvaluaEIC\Controladores\{Autenticacion, Materiales, Salas, Administracion};
+use EvaluaEIC\Controladores\{Autenticacion, Materiales, Salas, Administracion, Instalacion};
 
 ini_set('session.use_strict_mode','1');
 $rutaSesiones=RAIZ.'/almacenamiento/sesiones';
@@ -25,17 +25,21 @@ $dentroDeLaApp = $rutaBase === '' || $solicitada === $rutaBase || str_starts_wit
 $ruta = $dentroDeLaApp ? (substr($solicitada, strlen($rutaBase)) ?: '/') : '';
 $esApi = str_starts_with($ruta,'/api/');
 try {
+    if ($ruta === '/verificar_bd.php') {
+        Instalacion::mostrarDiagnostico();
+        exit;
+    }
     if ($esApi) {
         header('Content-Type: application/json; charset=utf-8');
         $accion=substr($ruta,5); $metodo=$_SERVER['REQUEST_METHOD'];
-        $lecturas=['materiales','material','usuarios','motores','salas','estado'];
+        $lecturas=['materiales','material','usuarios','motores','salas','estado','respuestas'];
         $esLectura=in_array($accion,$lecturas,true);
         if ($metodo!==($esLectura?'GET':'POST')) throw new ErrorAplicacion('Método no permitido.',405);
         if (!$esLectura) Seguridad::csrf();
         $usuario=Seguridad::usuario(false);
-        if (!in_array($accion,['ingresar','unirse','estado','responder','salir'],true)) $usuario=Seguridad::usuario();
-        if (in_array($accion,['usuarios','crear-usuario','estado-usuario','probar-motor'],true)) $usuario=Seguridad::administrador();
-        if (!in_array($accion,['ingresar','salir'],true)) session_write_close();
+        if (!in_array($accion,['ingresar','unirse','estado','responder','respuestas','salir'],true)) $usuario=Seguridad::usuario();
+        if (in_array($accion,['usuarios','crear-usuario','estado-usuario','eliminar-usuario','actualizar-cuenta','probar-motor'],true)) $usuario=Seguridad::administrador();
+        if (!in_array($accion,['ingresar','salir','actualizar-cuenta'],true)) session_write_close();
         $datos=[];
         if ($metodo==='POST' && str_contains($_SERVER['CONTENT_TYPE']??'','application/json')) {
             $cuerpo=file_get_contents('php://input');
@@ -56,8 +60,12 @@ try {
             'crear-sala'=>Salas::crear($datos,$usuario), 'iniciar-sala'=>Salas::iniciar($datos,$usuario),
             'salas'=>Salas::listar($usuario), 'unirse'=>Evaluacion::unirse($datos), 'responder'=>Evaluacion::responder($datos,$token),
             'estado'=>Evaluacion::estado(mb_strtoupper((string)($_GET['codigo']??'')),$usuario,$token),
+            'respuestas'=>Salas::respuestas($_GET,$usuario,$token),
             'usuarios'=>Administracion::usuarios(), 'crear-usuario'=>Administracion::crearUsuario($datos),
-            'estado-usuario'=>Administracion::cambiarEstado($datos,$usuario), 'motores'=>['motores'=>InteligenciaArtificial::proveedores()],
+            'estado-usuario'=>Administracion::gestionarUsuario($datos,$usuario),
+            'eliminar-usuario'=>Administracion::gestionarUsuario($datos,$usuario,true),
+            'actualizar-cuenta'=>Administracion::actualizarCuenta($datos,$usuario),
+            'motores'=>['motores'=>InteligenciaArtificial::proveedores()],
             'probar-motor'=>InteligenciaArtificial::probar((string)($datos['motor']??'openrouter')),
             default=>throw new ErrorAplicacion('Ruta no encontrada.',404)
         };
@@ -77,7 +85,10 @@ try {
     $codigo='';
     if (preg_match('#^/sala/([A-Za-z0-9-]{4,12})$#',$ruta,$coincidencias)) { $codigo=strtoupper($coincidencias[1]); $vista='participante'; }
     elseif ($ruta==='/participar') $vista='participante';
-    elseif ($ruta==='/ingreso') $vista='ingreso';
+    elseif ($ruta==='/ingreso') {
+        $vista='ingreso';
+        [$instalacionDisponible, $mensajeInstalacion] = Instalacion::prepararIngreso();
+    }
     elseif (in_array($ruta,['/admin','/docente'],true)) {
         if (!$usuario) { header('Location: '.ruta_app('/ingreso')); exit; }
         if ($ruta==='/admin' && $usuario['rol']!=='admin') throw new ErrorAplicacion('Esta página es solo para administradores.',403);

@@ -8,21 +8,16 @@ if (PHP_SAPI !== 'cli') {
 
 require dirname(__DIR__) . '/configuracion/aplicacion.php';
 
-use EvaluaEIC\Controladores\Administracion;
-use EvaluaEIC\Servicios\{BaseDatos, ErrorAplicacion};
+use EvaluaEIC\Controladores\Instalacion;
+use EvaluaEIC\Servicios\ErrorAplicacion;
 
 try {
-    if (BaseDatos::ejecutar("SELECT id FROM usuarios WHERE rol='admin' LIMIT 1")->fetchColumn()) {
-        throw new ErrorAplicacion('Ya existe una cuenta de administrador.');
-    }
-
     $usuario = 'admin-inicial';
     $clave = bin2hex(random_bytes(18));
-    Administracion::crearUsuario([
+    Instalacion::crearAdministrador([
         'nombre' => 'Administrador inicial',
         'usuario' => $usuario,
         'clave' => $clave,
-        'rol' => 'admin',
     ]);
 
     echo "Usuario: {$usuario}\nContraseña: {$clave}\n";

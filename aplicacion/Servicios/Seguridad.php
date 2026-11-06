@@ -4,11 +4,13 @@ namespace EvaluaEIC\Servicios;
 final class Seguridad {
     public static function usuario(bool $obligatorio = true): ?array {
         $id = $_SESSION['usuario_id'] ?? null;
-        $usuario = $id ? BaseDatos::ejecutar('SELECT id,nombre,usuario,rol,estado FROM usuarios WHERE id = ?', [$id])->fetch() : false;
-        if (!$usuario || $usuario['estado'] !== 'activo') {
+        $usuario = $id ? BaseDatos::ejecutar('SELECT id,nombre,usuario,rol,estado,clave_hash FROM usuarios WHERE id = ?', [$id])->fetch() : false;
+        if (!$usuario || $usuario['estado'] !== 'activo' || ($usuario['rol'] === 'admin' &&
+            !hash_equals(hash('sha256', $usuario['clave_hash']), $_SESSION['credencial'] ?? ''))) {
             if ($obligatorio) throw new ErrorAplicacion('Inicia sesión para continuar.', 401);
             return null;
         }
+        unset($usuario['clave_hash']);
         return $usuario;
     }
     public static function administrador(): array {
@@ -23,8 +25,9 @@ final class Seguridad {
         }
         return $nombre;
     }
-    public static function csrf(): void {
-        if (!hash_equals($_SESSION['csrf'] ?? '', $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) throw new ErrorAplicacion('La sesión cambió. Recarga la página e inténtalo otra vez.', 403);
+    public static function csrf(?string $token = null): void {
+        $token ??= $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '';
+        if (!hash_equals($_SESSION['csrf'] ?? '', $token)) throw new ErrorAplicacion('La sesión cambió. Recarga la página e inténtalo otra vez.', 403);
     }
     public static function texto(mixed $valor, int $minimo, int $maximo, string $campo): string {
         if (!is_string($valor)) throw new ErrorAplicacion("Revisa el campo {$campo}.");

@@ -11,6 +11,9 @@
     <script id="datos-iniciales" type="application/json"><?= json_seguro($datosIniciales) ?></script>
     <script src="<?= escapar(ruta_app('/js/terceros/codigo-qr.js')) ?>" defer></script>
     <script src="<?= escapar(ruta_app('/js/comun.js')) ?>" defer></script>
+    <?php if ($vista !== 'ingreso'): ?>
+        <script src="<?= escapar(ruta_app('/js/experiencia.js')) ?>" defer></script>
+    <?php endif; ?>
     <?php $script = $vista === 'ingreso' ? 'ingreso' : ($vista === 'participante' ? 'participante' : 'panel'); ?>
     <script src="<?= escapar(ruta_app('/js/' . $script . '.js')) ?>" defer></script>
 </head>
@@ -23,9 +26,12 @@
 <symbol id="i-cerrar" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
 <symbol id="i-papelera" viewBox="0 0 24 24"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></symbol>
 <symbol id="i-usuarios" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M2 21v-3a7 7 0 0 1 14 0v3M17 4a4 4 0 0 1 0 8m3 9v-3a6 6 0 0 0-3-5"/></symbol>
+<symbol id="i-cuenta" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21v-2a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v2"/></symbol>
 <symbol id="i-qr" viewBox="0 0 24 24"><path d="M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h3v3h-3zm6 0v7h-6m0-1h3"/></symbol>
 <symbol id="i-trofeo" viewBox="0 0 24 24"><path d="M8 3h8v7a4 4 0 0 1-8 0V3zM8 5H4v3a4 4 0 0 0 4 4m8-7h4v3a4 4 0 0 1-4 4m-4 2v6m-4 1h8"/></symbol>
 <symbol id="i-reloj" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-sonido" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4zM15 9a4 4 0 0 1 0 6m3-9a8 8 0 0 1 0 12"/></symbol>
+<symbol id="i-silencio" viewBox="0 0 24 24"><path d="M11 5 6 9H3v6h3l5 4zM16 9l5 6m0-6-5 6"/></symbol>
 <symbol id="i-salir" viewBox="0 0 24 24"><path d="M9 4H4v16h5m5-12 4 4-4 4m-6-4h14"/></symbol>
 <symbol id="i-capas" viewBox="0 0 24 24"><path d="m12 3 10 5-10 5L2 8zm-10 9 10 5 10-5M2 16l10 5 10-5"/></symbol>
 <symbol id="i-ia" viewBox="0 0 24 24"><path d="m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5zM21 2v4m-2-2h4"/></symbol>
