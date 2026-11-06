@@ -2,6 +2,7 @@
 window.Evalua = (() => {
   const datos = JSON.parse(document.getElementById('datos-iniciales').textContent);
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
+  const ruta = relativa => datos.rutaBase + relativa;
   const escapar = valor => String(valor ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icono = nombre => `<svg class="icono" aria-hidden="true"><use href="#i-${nombre}"/></svg>`;
   async function api(accion, datosEnvio = null, token = '') {
@@ -10,7 +11,7 @@ window.Evalua = (() => {
     if (datosEnvio instanceof FormData) opciones.body=datosEnvio;
     else if (datosEnvio !== null) { opciones.headers['Content-Type']='application/json'; opciones.body=JSON.stringify(datosEnvio); }
     let respuesta;
-    try { respuesta=await fetch(`/api/${accion}`,opciones); }
+    try { respuesta=await fetch(ruta(`/api/${accion}`),opciones); }
     catch { throw new Error('No hay conexión con el servidor. Inténtalo de nuevo.'); }
     let resultado;
     try { resultado=await respuesta.json(); } catch { throw new Error('El servidor no pudo procesar la solicitud. Revisa su registro.'); }
@@ -62,5 +63,5 @@ window.Evalua = (() => {
     if (typeof qrcode!=='function') return '<p>Comparte el enlace o el código de sala.</p>';
     const codigo=qrcode(0,'M'); codigo.addData(url,'Byte'); codigo.make(); return codigo.createSvgTag({cellSize:5,margin:20,scalable:true});
   }
-  return {datos,escapar,icono,api,aviso,abrirDialogo,cerrarDialogo,manejarCierre,confirmar,vacio,avatar,ranking,qr};
+  return {datos,ruta,escapar,icono,api,aviso,abrirDialogo,cerrarDialogo,manejarCierre,confirmar,vacio,avatar,ranking,qr};
 })();

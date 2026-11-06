@@ -1,19 +1,28 @@
 'use strict';
 (() => {
-  const {api,datos,escapar:e,icono:i,aviso,avatar,ranking,vacio}=Evalua;
+  const {api,ruta,datos,escapar:e,icono:i,aviso,avatar,ranking,vacio}=Evalua;
   const raiz=document.getElementById('experiencia-participante');
   const colores=['marino','celeste','amarilla','turquesa'];
   let codigo=datos.codigo,token='',estado=null,firma='',elegida=null,enviando=false,desfase=0,temporizador=null;
-  const leerToken=()=>{try{return localStorage.getItem(`evaluaia-${codigo}`)||'';}catch{return '';}};
-  const guardarToken=valor=>{try{if(valor)localStorage.setItem(`evaluaia-${codigo}`,valor);else localStorage.removeItem(`evaluaia-${codigo}`);}catch{/* La sesión sigue disponible en memoria. */}};
+  const leerToken=()=>{
+    try{return localStorage.getItem(`evaluaeic-${codigo}`)||localStorage.getItem(`evaluaia-${codigo}`)||'';}
+    catch{return '';}
+  };
+  const guardarToken=valor=>{
+    try{
+      if(valor)localStorage.setItem(`evaluaeic-${codigo}`,valor);
+      else localStorage.removeItem(`evaluaeic-${codigo}`);
+      localStorage.removeItem(`evaluaia-${codigo}`);
+    }catch{/* La sesión sigue disponible en memoria. */}
+  };
   function formularioCodigo(mensaje='') {
     raiz.className='experiencia-participante';
     raiz.innerHTML=`<section class="panel tarjeta-participante centrado"><div class="icono-bienvenida">${i('qr')}</div><h1>Entrar a una evaluación</h1><form id="formulario-codigo" class="formulario"><label class="alinear-izquierda">Código de sala<input class="entrada-codigo" name="codigo" placeholder="EVAL-A1B2C3" maxlength="12" minlength="4" autocapitalize="characters" autocomplete="off" required value="${e(codigo)}"></label>${mensaje?`<p class="mensaje-error" role="alert">${e(mensaje)}</p>`:''}<button class="boton primario ancho" type="submit">Entrar a la sala ${i('flecha')}</button></form></section>`;
-    document.getElementById('formulario-codigo').addEventListener('submit',evento=>{evento.preventDefault();codigo=evento.currentTarget.elements.codigo.value.trim().toUpperCase();location.assign(`/sala/${encodeURIComponent(codigo)}`);});
+    document.getElementById('formulario-codigo').addEventListener('submit',evento=>{evento.preventDefault();codigo=evento.currentTarget.elements.codigo.value.trim().toUpperCase();location.assign(ruta(`/sala/${encodeURIComponent(codigo)}`));});
   }
   function registro(s) {
     if(s.fase!=='espera') {
-      raiz.innerHTML=`<section class="panel tarjeta-participante centrado">${vacio(s.fase==='finalizada'?'Esta evaluación ya terminó':'La evaluación ya comenzó','Solicita al docente un nuevo código para participar.','reloj')}<a class="boton primario" href="/participar">Buscar otra sala</a></section>`;return;
+      raiz.innerHTML=`<section class="panel tarjeta-participante centrado">${vacio(s.fase==='finalizada'?'Esta evaluación ya terminó':'La evaluación ya comenzó','Solicita al docente un nuevo código para participar.','reloj')}<a class="boton primario" href="${ruta('/participar')}">Buscar otra sala</a></section>`;return;
     }
     raiz.innerHTML=`<section class="panel tarjeta-participante"><div class="centrado"><span class="insignia verde"><span class="punto conectado"></span> Sala abierta · ${e(codigo)}</span><h1>Registro de participante</h1><p class="texto-suave">${e(s.titulo)}</p></div><form id="formulario-registro" class="formulario"><label>Nombre completo<input name="nombre" placeholder="Escribe tu nombre y apellido" minlength="2" maxlength="100" required autocomplete="name"></label><fieldset class="campo-avatares"><legend>Elige tu avatar</legend><div class="galeria-avatares">${datos.avatares.map((a,n)=>`<label class="opcion-avatar"><input type="radio" name="avatar" value="${n}" ${n===0?'checked':''}><span class="avatar avatar-${n%6}" aria-hidden="true">${a}</span><span class="solo-lector">Avatar ${n+1}</span></label>`).join('')}</div></fieldset><p class="texto-suave texto-pequeno">Tu nombre y resultado serán visibles para el grupo.</p><p id="error-registro" class="mensaje-error" hidden role="alert"></p><button class="boton primario ancho" type="submit">Entrar a la sala ${i('flecha')}</button></form><p class="centrado texto-suave texto-pequeno">${i('reloj')} ${s.total} preguntas · ${s.tiempo} segundos por pregunta</p></section>`;
     document.getElementById('formulario-registro').addEventListener('submit',async evento=>{
@@ -35,7 +44,7 @@
     } else if(s.fase==='preparacion') {
       if(cambio)raiz.innerHTML=`<section class="panel tarjeta-participante centrado"><span class="sobrelinea">TODO LISTO</span><h1>¡Vamos a comenzar!</h1><div class="cuenta-inicio" id="tiempo-pregunta">3</div><p class="texto-suave">Lee con atención y elige una sola respuesta.</p></section>`;
     } else if(s.fase==='finalizada') {
-      if(cambio)raiz.innerHTML=`<section class="panel resultados-finales"><div class="centrado"><div class="icono-bienvenida dorado">${i('trofeo')}</div><span class="sobrelinea">ACTIVIDAD COMPLETADA</span><h1>Evaluación finalizada</h1><p class="texto-suave">${e(s.titulo)}</p><div class="mi-resultado"><strong>${s.participante.porcentaje}%</strong><span>${s.participante.aciertos} de ${s.total} respuestas correctas · ${s.participante.puntos.toLocaleString('es')} puntos</span></div></div><h2 class="centrado">Resultados del grupo</h2>${ranking(s.ranking,s.total,s.participante.id)}<div class="centrado margen-superior"><a class="boton primario" href="/participar">Entrar a otra sala</a></div></section>`;
+      if(cambio)raiz.innerHTML=`<section class="panel resultados-finales"><div class="centrado"><div class="icono-bienvenida dorado">${i('trofeo')}</div><span class="sobrelinea">ACTIVIDAD COMPLETADA</span><h1>Evaluación finalizada</h1><p class="texto-suave">${e(s.titulo)}</p><div class="mi-resultado"><strong>${s.participante.porcentaje}%</strong><span>${s.participante.aciertos} de ${s.total} respuestas correctas · ${s.participante.puntos.toLocaleString('es')} puntos</span></div></div><h2 class="centrado">Resultados del grupo</h2>${ranking(s.ranking,s.total,s.participante.id)}<div class="centrado margen-superior"><a class="boton primario" href="${ruta('/participar')}">Entrar a otra sala</a></div></section>`;
     } else {
       raiz.className='experiencia-participante modo-examen';
       if(cambio){

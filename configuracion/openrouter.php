@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-// La clave y el modelo se leen de .env o del entorno del servidor.
+// La clave y el modelo se leen de configuracion/servidor.php o del entorno del servidor.
 // Estos límites son conservadores y se pueden ajustar a la cuenta elegida.
 return [
     'url' => 'https://openrouter.ai/api/v1',

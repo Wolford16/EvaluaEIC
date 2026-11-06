@@ -1,4 +1,5 @@
 /.env
+/configuracion/servidor.php
 /almacenamiento/*
 !/almacenamiento/.gitkeep
 /terceros/
@@ -7,3 +8,4 @@
 /herramientas/composer-instalador.sha384
 *.log
 /tmp/
+/entrega/

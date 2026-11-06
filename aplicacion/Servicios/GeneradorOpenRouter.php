@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Servicios;
+namespace EvaluaEIC\Servicios;
 
 /** Recorre el texto completo; los documentos extensos se condensan por bloques. */
 final class GeneradorOpenRouter {
@@ -10,7 +10,7 @@ final class GeneradorOpenRouter {
     private int $bloquesOriginales = 1;
     private bool $resumido = false;
 
-    public function __construct(private readonly ClienteOpenRouter $cliente) {
+    public function __construct(private ClienteOpenRouter $cliente) {
         $this->limiteTiempo = microtime(true) + $cliente->ajustes['tiempo_total'];
     }
 

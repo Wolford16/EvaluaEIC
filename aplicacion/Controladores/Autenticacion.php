@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Controladores;
-use EvaluaIA\Servicios\{BaseDatos, Seguridad, ErrorAplicacion};
+namespace EvaluaEIC\Controladores;
+use EvaluaEIC\Servicios\{BaseDatos, Seguridad, ErrorAplicacion};
 final class Autenticacion {
     public static function ingresar(array $datos): array {
         $nombreUsuario = Seguridad::nombreUsuario($datos['usuario'] ?? '');
@@ -21,11 +21,11 @@ final class Autenticacion {
         session_regenerate_id(true);
         $_SESSION['usuario_id'] = (int)$usuario['id'];
         $_SESSION['csrf'] = bin2hex(random_bytes(32));
-        return ['destino' => $usuario['rol'] === 'admin' ? '/admin' : '/docente'];
+        return ['destino' => ruta_app($usuario['rol'] === 'admin' ? '/admin' : '/docente')];
     }
     public static function salir(): array {
         $_SESSION = [];
         session_destroy();
-        return ['destino' => '/ingreso'];
+        return ['destino' => ruta_app('/ingreso')];
     }
 }

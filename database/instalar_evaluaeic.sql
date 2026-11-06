@@ -1,3 +1,4 @@
+-- EvaluaEIC. Selecciona la base asignada antes de importar en phpMyAdmin.
 CREATE TABLE IF NOT EXISTS usuarios (
  id INTEGER PRIMARY KEY AUTO_INCREMENT, nombre VARCHAR(120) NOT NULL,
  usuario VARCHAR(40) NOT NULL UNIQUE, clave_hash VARCHAR(255) NOT NULL,

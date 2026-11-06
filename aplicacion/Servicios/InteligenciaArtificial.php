@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Servicios;
+namespace EvaluaEIC\Servicios;
 
 /** Punto de entrada de la IA de EvaluaEIC: OpenRouter es el único proveedor. */
 final class InteligenciaArtificial {
@@ -24,14 +24,14 @@ final class InteligenciaArtificial {
     }
 
     public static function validarPreguntas(mixed $preguntas, int $cantidadOpciones = 4): array {
-        if (!is_array($preguntas) || !array_is_list($preguntas) || count($preguntas) < 1 || count($preguntas) > 30) {
+        if (!is_array($preguntas) || !es_lista($preguntas) || count($preguntas) < 1 || count($preguntas) > 30) {
             throw new ErrorAplicacion('Guarda entre 1 y 30 preguntas.');
         }
         $resultado = [];
         foreach ($preguntas as $pregunta) {
             if (!is_array($pregunta)) throw new ErrorAplicacion('Revisa el formato de las preguntas.');
             $opciones = $pregunta['opciones'] ?? [];
-            if (!is_array($opciones) || !array_is_list($opciones) || count($opciones) !== $cantidadOpciones) {
+            if (!is_array($opciones) || !es_lista($opciones) || count($opciones) !== $cantidadOpciones) {
                 throw new ErrorAplicacion("Cada pregunta debe tener {$cantidadOpciones} opciones.");
             }
             $opciones = array_map(fn($opcion) => Seguridad::texto($opcion, 1, 1500, 'Opción'), $opciones);

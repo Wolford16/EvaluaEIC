@@ -4,7 +4,7 @@ La descripción y la demo originales son referencias del producto. Esta implemen
 
 ## Flujo de una petición
 
-`publico/index.php` recibe la ruta, abre la sesión local y aplica los encabezados HTTP. Las páginas cargan plantillas de `vistas`. Las rutas `/api/...` reciben o entregan JSON, y delegan en los controladores. Los servicios concentran la conexión PDO, validaciones, extracción de PDF, solicitudes de IA y reglas de evaluación.
+Apache usa `.htaccess` para enviar las rutas de la aplicación al `index.php` de la raíz y limitar los archivos que sirve. El punto de entrada carga `publico/index.php`, que recibe la ruta, abre la sesión y aplica los encabezados HTTP. Las páginas cargan plantillas de `vistas`. Las rutas `/api/...` reciben o entregan JSON y delegan en los controladores. Los servicios concentran la conexión PDO, validaciones, extracción de PDF, solicitudes de IA y reglas de evaluación.
 
 Las consultas usan parámetros preparados. Las mutaciones exigen un token CSRF. El ingreso institucional utiliza usuario y contraseña, con nombres de usuario únicos y normalizados en minúsculas. Los administradores pueden gestionar todos los materiales; los docentes acceden a los suyos. Un participante se identifica mediante un token aleatorio por sala, del cual la base solo guarda el hash. Los PDF se sirven por una ruta autenticada, fuera de la carpeta pública.
 
@@ -55,7 +55,7 @@ El tiempo empleado se mide al recibir la respuesta en el servidor. Por ejemplo, 
 
 El flujo de carga valida tamaño, extensión, tipo real y cabecera PDF. El lector extrae texto y número de páginas. Una pregunta nueva contiene un enunciado, cuatro opciones distintas, un índice correcto de 0 a 3 y una explicación. Se comprueba la cantidad solicitada y se vuelve a validar el contenido al guardar la revisión. Los borradores y las salas anteriores de dos opciones conservan su formato.
 
-EvaluaEIC lee `OPENROUTER_API_KEY` y `OPENROUTER_MODEL` mediante el cargador del entorno. `ClienteOpenRouter` consulta el catálogo, adapta la solicitud al formato admitido por el modelo y traduce los errores del servicio. `GeneradorOpenRouter` organiza los lotes, el análisis por bloques y los reintentos acotados. `InteligenciaArtificial` valida las preguntas al generarlas y al guardarlas.
+EvaluaEIC lee `OPENROUTER_API_KEY` y `OPENROUTER_MODEL` desde `configuracion/servidor.php` o el entorno de PHP. `ClienteOpenRouter` consulta el catálogo, adapta la solicitud al formato admitido por el modelo y traduce los errores del servicio. `GeneradorOpenRouter` organiza los lotes, el análisis por bloques y los reintentos acotados. `InteligenciaArtificial` valida las preguntas al generarlas y al guardarlas.
 
 Se solicita JSON Schema estricto. Si el modelo rechaza expresamente ese formato, la misma operación utiliza JSON Object con el mismo modelo; no cambia de modelo ni de proveedor. La validación local comprueba estructura, cantidad, opciones, índice correcto y duplicados incluso cuando se utilizó esquema estricto.
 

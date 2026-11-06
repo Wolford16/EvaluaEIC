@@ -1,9 +1,11 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Controladores;
-use EvaluaIA\Servicios\{BaseDatos, Seguridad, ErrorAplicacion, Evaluacion};
+namespace EvaluaEIC\Controladores;
+use EvaluaEIC\Servicios\{BaseDatos, Seguridad, ErrorAplicacion, Evaluacion};
 final class Salas {
     public static function crear(array $datos,array $usuario): array {
+        $url = url_publica();
+        if ($url === null) throw new ErrorAplicacion('Configura APLICACION_URL con la dirección pública de EvaluaEIC para crear salas.', 503);
         $id=Seguridad::entero($datos['documento_id']??null,1,PHP_INT_MAX,'documento');
         $documento=Seguridad::documento($id,$usuario);
         $tiempo=Seguridad::entero($datos['tiempo']??20,15,30,'tiempo');
@@ -13,7 +15,7 @@ final class Salas {
         $copia=array_map(fn($p)=>['enunciado'=>$p['enunciado'],'opciones'=>$p['opciones'],'correcta'=>(int)$p['correcta'],'explicacion'=>$p['explicacion']],$preguntas);
         do { $codigo='EVAL-'.strtoupper(bin2hex(random_bytes(3))); } while (BaseDatos::ejecutar('SELECT id FROM salas_evaluacion WHERE codigo=?',[$codigo])->fetchColumn());
         BaseDatos::ejecutar('INSERT INTO salas_evaluacion (documento_id,titulo,docente,codigo,creado_por_id,tiempo,preguntas_json,creado_en) VALUES (?,?,?,?,?,?,?,?)',[$id,$documento['titulo'],$usuario['nombre'],$codigo,$usuario['id'],$tiempo,json_encode($copia,JSON_UNESCAPED_UNICODE),date('Y-m-d H:i:s')]);
-        return ['codigo'=>$codigo,'url'=>rtrim(entorno('APLICACION_URL','http://localhost:8080'),'/').'/sala/'.$codigo];
+        return ['codigo'=>$codigo,'url'=>$url.'/sala/'.$codigo];
     }
     public static function iniciar(array $datos,array $usuario): array {
         return BaseDatos::transaccion(function() use ($datos,$usuario) {

@@ -1,22 +1,28 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/configuracion/aplicacion.php';
-use EvaluaIA\Servicios\{Seguridad, BaseDatos, Evaluacion, InteligenciaArtificial, ErrorAplicacion};
-use EvaluaIA\Controladores\{Autenticacion, Materiales, Salas, Administracion};
+use EvaluaEIC\Servicios\{Seguridad, BaseDatos, Evaluacion, InteligenciaArtificial, ErrorAplicacion};
+use EvaluaEIC\Controladores\{Autenticacion, Materiales, Salas, Administracion};
 
 ini_set('session.use_strict_mode','1');
 $rutaSesiones=RAIZ.'/almacenamiento/sesiones';
 if (!is_dir($rutaSesiones)) mkdir($rutaSesiones,0700,true);
 session_save_path($rutaSesiones);
-session_name('evaluaia_sesion');
-session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax','secure'=>!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS']!=='off','path'=>'/']);
+session_name('evaluaeic_sesion');
+$urlPublica = url_publica();
+$rutaBase = ruta_base();
+$usaHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+    || str_starts_with(strtolower($urlPublica ?? ''), 'https://');
+session_set_cookie_params(['httponly'=>true,'samesite'=>'Lax','secure'=>$usaHttps,'path'=>$rutaBase ?: '/']);
 session_start();
 $_SESSION['csrf'] ??= bin2hex(random_bytes(32));
 header('X-Content-Type-Options: nosniff');
 header('Referrer-Policy: same-origin');
 header("Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; form-action 'self'");
 header('Cache-Control: no-store');
-$ruta = rtrim(parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH) ?: '/', '/') ?: '/';
+$solicitada = rtrim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/', '/');
+$dentroDeLaApp = $rutaBase === '' || $solicitada === $rutaBase || str_starts_with($solicitada, $rutaBase . '/');
+$ruta = $dentroDeLaApp ? (substr($solicitada, strlen($rutaBase)) ?: '/') : '';
 $esApi = str_starts_with($ruta,'/api/');
 try {
     if ($esApi) {
@@ -58,7 +64,7 @@ try {
         echo json_seguro(['ok'=>true]+$resultado); exit;
     }
     $usuario=Seguridad::usuario(false);
-    if ($ruta==='/') { header('Location: '.($usuario ? ($usuario['rol']==='admin'?'/admin':'/docente') : '/ingreso')); exit; }
+    if ($ruta==='/' || $ruta==='/index.php') { header('Location: '.ruta_app($usuario ? ($usuario['rol']==='admin'?'/admin':'/docente') : '/ingreso')); exit; }
     if (preg_match('#^/archivo/(\d+)$#',$ruta,$coincidencias)) {
         $documento=Seguridad::documento((int)$coincidencias[1],Seguridad::usuario());
         $archivo=RAIZ.'/almacenamiento/documentos/'.$documento['ruta_archivo'];
@@ -73,11 +79,11 @@ try {
     elseif ($ruta==='/participar') $vista='participante';
     elseif ($ruta==='/ingreso') $vista='ingreso';
     elseif (in_array($ruta,['/admin','/docente'],true)) {
-        if (!$usuario) { header('Location: /ingreso'); exit; }
+        if (!$usuario) { header('Location: '.ruta_app('/ingreso')); exit; }
         if ($ruta==='/admin' && $usuario['rol']!=='admin') throw new ErrorAplicacion('Esta página es solo para administradores.',403);
         $vista=$ruta==='/admin'?'administracion':'docente';
     } else throw new ErrorAplicacion('La página no existe.',404);
-    $datosIniciales=['vista'=>$vista,'usuario'=>$usuario,'codigo'=>$codigo,'url'=>rtrim(entorno('APLICACION_URL','http://localhost:8080'),'/'),'avatares'=>Evaluacion::AVATARES];
+    $datosIniciales=['vista'=>$vista,'usuario'=>$usuario,'codigo'=>$codigo,'url'=>$urlPublica,'rutaBase'=>$rutaBase,'avatares'=>Evaluacion::AVATARES];
     $csrf=$_SESSION['csrf']; session_write_close();
     require RAIZ.'/vistas/estructura.php';
 } catch (\Throwable $error) {
@@ -94,5 +100,5 @@ try {
         }
         echo json_seguro($respuestaError);
     }
-    else { header('Content-Type: text/html; charset=utf-8'); echo '<!doctype html><html lang="es"><meta charset="utf-8"><title>EvaluaEIC</title><link rel="stylesheet" href="/css/estilos.css"><main class="pagina-error panel"><h1>EvaluaEIC</h1><p>'.escapar($mensaje).'</p><a class="boton primario" href="/ingreso">Volver al ingreso</a><p class="texto-suave">Si es tu primer inicio, ejecuta iniciar.ps1 desde la carpeta del proyecto.</p></main></html>'; }
+    else { header('Content-Type: text/html; charset=utf-8'); echo '<!doctype html><html lang="es"><meta charset="utf-8"><title>EvaluaEIC</title><link rel="stylesheet" href="'.escapar(ruta_app('/css/estilos.css')).'"><main class="pagina-error panel"><h1>EvaluaEIC</h1><p>'.escapar($mensaje).'</p><a class="boton primario" href="'.escapar(ruta_app('/ingreso')).'">Volver al ingreso</a></main></html>'; }
 }

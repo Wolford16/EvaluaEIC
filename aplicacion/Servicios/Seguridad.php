@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Servicios;
+namespace EvaluaEIC\Servicios;
 final class Seguridad {
     public static function usuario(bool $obligatorio = true): ?array {
         $id = $_SESSION['usuario_id'] ?? null;
@@ -24,7 +24,7 @@ final class Seguridad {
         return $nombre;
     }
     public static function csrf(): void {
-        if (!hash_equals($_SESSION['csrf'] ?? '', $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) throw new ErrorAplicacion('La sesión cambió. Recarga la página e inténtalo otra vez.', 419);
+        if (!hash_equals($_SESSION['csrf'] ?? '', $_SERVER['HTTP_X_CSRF_TOKEN'] ?? '')) throw new ErrorAplicacion('La sesión cambió. Recarga la página e inténtalo otra vez.', 403);
     }
     public static function texto(mixed $valor, int $minimo, int $maximo, string $campo): string {
         if (!is_string($valor)) throw new ErrorAplicacion("Revisa el campo {$campo}.");

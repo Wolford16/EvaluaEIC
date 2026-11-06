@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Controladores;
-use EvaluaIA\Servicios\{BaseDatos, Seguridad, ErrorAplicacion, LectorPdf, InteligenciaArtificial};
+namespace EvaluaEIC\Controladores;
+use EvaluaEIC\Servicios\{BaseDatos, Seguridad, ErrorAplicacion, LectorPdf, InteligenciaArtificial};
 final class Materiales {
     public static function listar(array $usuario): array {
         $condicion = $usuario['rol']==='admin' ? '' : ' WHERE d.subido_por_id = ?';

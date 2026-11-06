@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Servicios;
+namespace EvaluaEIC\Servicios;
 final class LectorPdf {
     public static function analizar(string $ruta): array {
         if (!class_exists(\Smalot\PdfParser\Parser::class)) throw new ErrorAplicacion('Falta instalar el lector PDF. Ejecuta el paso de Composer indicado en LEEME.md.', 503);

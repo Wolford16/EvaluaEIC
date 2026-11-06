@@ -2,7 +2,7 @@
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require dirname(__DIR__) . '/configuracion/aplicacion.php';
-use EvaluaIA\Servicios\{InteligenciaArtificial, ErrorAplicacion};
+use EvaluaEIC\Servicios\{InteligenciaArtificial, ErrorAplicacion};
 
 try {
     if (!extension_loaded('curl')) throw new RuntimeException('Activa la extensión cURL de PHP.');

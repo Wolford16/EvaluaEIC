@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Controladores;
-use EvaluaIA\Servicios\{BaseDatos, Seguridad, ErrorAplicacion};
+namespace EvaluaEIC\Controladores;
+use EvaluaEIC\Servicios\{BaseDatos, Seguridad, ErrorAplicacion};
 final class Administracion {
     public static function usuarios(): array { return ['usuarios'=>BaseDatos::ejecutar('SELECT id,nombre,usuario,rol,estado,creado_en FROM usuarios ORDER BY id')->fetchAll()]; }
     public static function crearUsuario(array $datos): array {

@@ -6,12 +6,13 @@
     <meta name="theme-color" content="#042B60">
     <meta name="csrf-token" content="<?= escapar($csrf) ?>">
     <title>EvaluaEIC · Escuela de Investigación Criminal</title>
-    <link rel="icon" href="/imagenes/logo-eic.png" type="image/png">
-    <link rel="stylesheet" href="/css/estilos.css">
+    <link rel="icon" href="<?= escapar(ruta_app('/imagenes/logo-eic.png')) ?>" type="image/png">
+    <link rel="stylesheet" href="<?= escapar(ruta_app('/css/estilos.css')) ?>">
     <script id="datos-iniciales" type="application/json"><?= json_seguro($datosIniciales) ?></script>
-    <script src="/js/terceros/codigo-qr.js" defer></script>
-    <script src="/js/comun.js" defer></script>
-    <script src="/js/<?= $vista==='ingreso'?'ingreso':($vista==='participante'?'participante':'panel') ?>.js" defer></script>
+    <script src="<?= escapar(ruta_app('/js/terceros/codigo-qr.js')) ?>" defer></script>
+    <script src="<?= escapar(ruta_app('/js/comun.js')) ?>" defer></script>
+    <?php $script = $vista === 'ingreso' ? 'ingreso' : ($vista === 'participante' ? 'participante' : 'panel'); ?>
+    <script src="<?= escapar(ruta_app('/js/' . $script . '.js')) ?>" defer></script>
 </head>
 <body class="vista-<?= escapar($vista) ?>">
 <svg class="simbolos" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>

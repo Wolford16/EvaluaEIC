@@ -4,7 +4,7 @@ if (PHP_SAPI !== 'cli') exit(1);
 putenv('OPENROUTER_API_KEY=clave-ficticia-para-pruebas');
 putenv('OPENROUTER_MODEL=modelo-de-prueba');
 require dirname(__DIR__) . '/configuracion/aplicacion.php';
-use EvaluaIA\Servicios\{ClienteOpenRouter, GeneradorOpenRouter, InteligenciaArtificial, ErrorAplicacion};
+use EvaluaEIC\Servicios\{ClienteOpenRouter, GeneradorOpenRouter, InteligenciaArtificial, ErrorAplicacion};
 
 $comprobaciones = 0;
 function comprobar(bool $condicion, string $mensaje): void {

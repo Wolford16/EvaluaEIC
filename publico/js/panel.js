@@ -1,6 +1,6 @@
 'use strict';
 (() => {
-  const {api,escapar:e,icono:i,aviso,datos,abrirDialogo,cerrarDialogo,manejarCierre,confirmar,vacio,avatar,ranking,qr}=Evalua;
+  const {api,ruta,escapar:e,icono:i,aviso,datos,abrirDialogo,cerrarDialogo,manejarCierre,confirmar,vacio,avatar,ranking,qr}=Evalua;
   let materiales=[], materialActivo=null, pestana='preguntas', seccion='documentos', borrador=null, preguntasRevision=[], salaTemporizador=null, secuenciaCarga=0, secuenciaSala=0;
   const esAdmin=datos.vista==='administracion';
   const fecha=valor=>new Date(valor.replace(' ','T')).toLocaleDateString('es-HN',{day:'2-digit',month:'short',year:'numeric'});
@@ -20,7 +20,7 @@
     const panel=document.getElementById('detalle-material'); panel.hidden=!materialActivo;
     if (!materialActivo) return;
     const d=await api(`material?id=${id}`);
-    panel.innerHTML=`<div class="cabecera-detalle"><div><span class="sobrelinea">MATERIAL DE CÁTEDRA</span><h2>${e(d.documento.titulo)}</h2><p>${cantidad(d.documento.paginas,'página','páginas')} · ${cantidad(d.preguntas.length,'pregunta','preguntas')}</p></div><div class="grupo-botones"><a href="/archivo/${id}" target="_blank" rel="noopener" class="boton suave pequeno">Ver PDF</a><button class="boton primario pequeno" data-accion="lanzar" data-id="${id}">${i('qr')} Crear evaluación</button><button class="boton-icono" data-accion="cerrar-material" aria-label="Cerrar material">${i('cerrar')}</button></div></div><nav class="pestanas" aria-label="Contenido del material">${[['preguntas','documento','Preguntas'],['participantes','usuarios','Participantes'],['ranking','trofeo','Ranking y resultados']].map(([clave,icono,titulo])=>`<button class="${pestana===clave?'activa':''}" data-accion="pestana" data-id="${clave}">${i(icono)} ${titulo}</button>`).join('')}</nav><div class="cuerpo-detalle" id="contenido-material"></div>`;
+    panel.innerHTML=`<div class="cabecera-detalle"><div><span class="sobrelinea">MATERIAL DE CÁTEDRA</span><h2>${e(d.documento.titulo)}</h2><p>${cantidad(d.documento.paginas,'página','páginas')} · ${cantidad(d.preguntas.length,'pregunta','preguntas')}</p></div><div class="grupo-botones"><a href="${ruta(`/archivo/${id}`)}" target="_blank" rel="noopener" class="boton suave pequeno">Ver PDF</a><button class="boton primario pequeno" data-accion="lanzar" data-id="${id}">${i('qr')} Crear evaluación</button><button class="boton-icono" data-accion="cerrar-material" aria-label="Cerrar material">${i('cerrar')}</button></div></div><nav class="pestanas" aria-label="Contenido del material">${[['preguntas','documento','Preguntas'],['participantes','usuarios','Participantes'],['ranking','trofeo','Ranking y resultados']].map(([clave,icono,titulo])=>`<button class="${pestana===clave?'activa':''}" data-accion="pestana" data-id="${clave}">${i(icono)} ${titulo}</button>`).join('')}</nav><div class="cuerpo-detalle" id="contenido-material"></div>`;
     const contenido=document.getElementById('contenido-material');
     if(pestana==='preguntas') contenido.innerHTML=d.preguntas.length ? d.preguntas.map((p,n)=>`<article class="pregunta-doc"><div class="fila-entre"><span class="sobrelinea">PREGUNTA ${n+1}</span><button class="boton-icono peligro" data-accion="eliminar-pregunta" data-id="${p.id}" aria-label="Eliminar pregunta ${n+1}">${i('papelera')}</button></div><h3>${e(p.enunciado)}</h3><div class="opciones-doc">${p.opciones.map((o,k)=>`<div class="opcion-doc ${Number(p.correcta)===k?'correcta':''}"><b>${'ABCD'[k]}</b><span>${e(o)}</span>${Number(p.correcta)===k?i('ok'):''}</div>`).join('')}</div><p class="explicacion">${i('ia')} ${e(p.explicacion)}</p></article>`).join('') : vacio('Este material no tiene preguntas','Carga otro material para preparar una evaluación.');
     else if(!d.salas.length) contenido.innerHTML=vacio('Sin evaluaciones','Crea una sala para este material.','usuarios');
@@ -43,7 +43,7 @@
     const destino=document.getElementById('seccion-admin'); destino.innerHTML='<p class="texto-suave">Cargando…</p>';
     if(seccion==='documentos') {
       await cargarMateriales();
-      destino.innerHTML=`<div class="titulo-seccion"><div><h2>Materiales institucionales</h2></div><span class="insignia">${cantidad(materiales.length,'documento','documentos')}</span></div>`+(materiales.length?`<div class="tabla-contenedor"><table><thead><tr><th>Documento</th><th>Subido por</th><th>Fecha</th><th>Preguntas</th><th></th></tr></thead><tbody>${materiales.map(d=>`<tr><td><div class="nombre-avatar"><span class="icono-pdf mini">${i('documento')}</span><div><strong>${e(d.titulo)}</strong><a class="bloque enlace-suave" href="/archivo/${d.id}" target="_blank" rel="noopener">${e(d.nombre_archivo)}</a></div></div></td><td>${e(d.autor)}</td><td>${fecha(d.creado_en)}</td><td>${d.cantidad}</td><td><button class="boton-icono peligro" data-accion="eliminar-material" data-id="${d.id}" aria-label="Eliminar documento">${i('papelera')}</button></td></tr>`).join('')}</tbody></table></div>`:vacio('Sin documentos'));
+      destino.innerHTML=`<div class="titulo-seccion"><div><h2>Materiales institucionales</h2></div><span class="insignia">${cantidad(materiales.length,'documento','documentos')}</span></div>`+(materiales.length?`<div class="tabla-contenedor"><table><thead><tr><th>Documento</th><th>Subido por</th><th>Fecha</th><th>Preguntas</th><th></th></tr></thead><tbody>${materiales.map(d=>`<tr><td><div class="nombre-avatar"><span class="icono-pdf mini">${i('documento')}</span><div><strong>${e(d.titulo)}</strong><a class="bloque enlace-suave" href="${ruta(`/archivo/${d.id}`)}" target="_blank" rel="noopener">${e(d.nombre_archivo)}</a></div></div></td><td>${e(d.autor)}</td><td>${fecha(d.creado_en)}</td><td>${d.cantidad}</td><td><button class="boton-icono peligro" data-accion="eliminar-material" data-id="${d.id}" aria-label="Eliminar documento">${i('papelera')}</button></td></tr>`).join('')}</tbody></table></div>`:vacio('Sin documentos'));
     } else if(seccion==='usuarios') {
       const {usuarios}=await api('usuarios');
       destino.innerHTML=`<div class="titulo-seccion"><h2>Usuarios institucionales</h2><span class="insignia">${cantidad(usuarios.length,'cuenta','cuentas')}</span></div>
@@ -63,7 +63,7 @@
       destino.innerHTML=`<div class="titulo-seccion"><h2>Inteligencia artificial</h2><span class="insignia ${motor.configurado?'verde':''}">${motor.configurado?'Configurada':'Pendiente de configuración'}</span></div>
         <article class="configuracion-openrouter"><div class="titulo-con-icono"><span class="icono-titulo">${i('ia')}</span><h3>OpenRouter</h3></div>
           <dl class="datos-openrouter"><div><dt>Modelo</dt><dd>${e(motor.modelo||'Sin configurar')}</dd></div><div><dt>Clave API</dt><dd>${motor.clave_configurada?'Configurada':'Sin configurar'}</dd></div></dl>
-          <p class="texto-suave texto-pequeno">La clave y el modelo se configuran en el archivo privado .env.</p>
+          <p class="texto-suave texto-pequeno">La clave y el modelo se configuran en el archivo privado configuracion/servidor.php.</p>
           <div class="acciones-openrouter"><button class="boton primario" data-accion="probar-motor" data-id="openrouter" ${motor.configurado?'':'disabled'}>${i('ia')} Probar conexión</button><span class="texto-suave texto-pequeno">Realiza una generación breve de prueba.</span></div>
           <p id="prueba-openrouter" class="resultado-prueba" role="status"></p>
         </article>`;
@@ -132,7 +132,7 @@
   async function abrirSala(codigo) {
     const numeroSala=++secuenciaSala;
     clearTimeout(salaTemporizador); manejarCierre(null);
-    const url=`${datos.url}/sala/${codigo}`;
+    const url=datos.url?`${datos.url}/sala/${codigo}`:null;
     abrirDialogo(`${cabeceraDialogo('EVALUACIÓN EN VIVO','Acceso a la sala')}<div id="sala-anfitrion"><p>Cargando…</p></div>`,'dialogo-sala');
     manejarCierre(()=>{secuenciaSala++;clearTimeout(salaTemporizador);});
     let ultimaVista='';
@@ -141,7 +141,11 @@
       try {
         const s=await api(`estado?codigo=${codigo}`),destino=document.getElementById('sala-anfitrion'); if(!destino || numeroSala!==secuenciaSala || !document.getElementById('dialogo').open)return;
         if(s.fase==='espera') {
-          if(ultimaVista!=='espera')destino.innerHTML=`<div class="sala-acceso"><div class="sala-qr"><div class="qr-codigo">${qr(url)}</div><div class="codigo-sala"><span>Código</span><strong>${e(codigo)}</strong></div></div><div class="sala-informacion"><h3>${e(s.titulo)}</h3><div class="datos-sala"><span>${i('documento')} ${cantidad(s.total,'pregunta','preguntas')}</span><span>${i('reloj')} ${s.tiempo} s por pregunta</span></div><p id="contador-sala" class="contador-conectados"></p><div id="lista-sala"></div></div></div><div class="enlace-sala"><input value="${e(url)}" readonly aria-label="Enlace para participantes"><button id="copiar-enlace" class="boton suave pequeno">Copiar enlace</button></div><div class="acciones-sala"><a class="boton suave" href="/sala/${e(codigo)}" target="_blank" rel="noopener">Vista participante</a><button id="iniciar-actividad" class="boton primario">Iniciar evaluación ${i('flecha')}</button></div>`;
+          if (!url) {
+            destino.innerHTML='<p class="mensaje-error">Configura la dirección pública de EvaluaEIC para mostrar el enlace y el QR.</p>';
+            return;
+          }
+          if(ultimaVista!=='espera')destino.innerHTML=`<div class="sala-acceso"><div class="sala-qr"><div class="qr-codigo">${qr(url)}</div><div class="codigo-sala"><span>Código</span><strong>${e(codigo)}</strong></div></div><div class="sala-informacion"><h3>${e(s.titulo)}</h3><div class="datos-sala"><span>${i('documento')} ${cantidad(s.total,'pregunta','preguntas')}</span><span>${i('reloj')} ${s.tiempo} s por pregunta</span></div><p id="contador-sala" class="contador-conectados"></p><div id="lista-sala"></div></div></div><div class="enlace-sala"><input value="${e(url)}" readonly aria-label="Enlace para participantes"><button id="copiar-enlace" class="boton suave pequeno">Copiar enlace</button></div><div class="acciones-sala"><a class="boton suave" href="${e(ruta(`/sala/${codigo}`))}" target="_blank" rel="noopener">Vista participante</a><button id="iniciar-actividad" class="boton primario">Iniciar evaluación ${i('flecha')}</button></div>`;
           destino.querySelector('#contador-sala').textContent=`${cantidad(s.conectados,'conectado','conectados')} · ${cantidad(s.cantidad,'inscrito','inscritos')}`;
           destino.querySelector('#lista-sala').innerHTML=listaParticipantes(s.ranking);
           destino.querySelector('#iniciar-actividad').disabled=s.cantidad===0;

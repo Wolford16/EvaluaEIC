@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Servicios;
+namespace EvaluaEIC\Servicios;
 final class DatosIniciales {
     public static function preguntas(): array {
         return [

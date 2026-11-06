@@ -1,6 +1,8 @@
 # EvaluaEIC en PHP
 
-Plataforma local de evaluaciones de la Escuela de Investigación Criminal. Usa PHP 8.2 o superior, HTML, CSS y JavaScript, con el logo original y la identidad visual de la EIC.
+Plataforma local de evaluaciones de la Escuela de Investigación Criminal. Usa PHP 8.0 o superior, HTML, CSS y JavaScript, con el logo original y la identidad visual de la EIC.
+
+Para instalar en Bitnami, copia esta carpeta y sigue [la guía de instalación](documentacion/instalacion_servidor.md).
 
 ## Iniciar en este equipo
 
@@ -16,22 +18,21 @@ Abre [http://localhost:8080](http://localhost:8080). Mantén la consola abierta;
 powershell -ExecutionPolicy Bypass -File .\iniciar.ps1
 ```
 
-El script utiliza primero `C:\xampp\php\php.exe`. Puedes elegir otro PHP definiendo `EVALUAIA_PHP`. No necesitas iniciar MySQL ni Apache para esta modalidad.
+El iniciador local usa el PHP de este equipo. Puedes elegir otro ejecutable mediante `EVALUAEIC_PHP`. La base local utiliza SQLite.
 
-Estas son las cuentas de la instalación local de ejemplo:
+En una base nueva, crea el primer administrador desde una consola en la raíz del proyecto.
 
-| Acceso | Usuario | Contraseña inicial |
-| --- | --- | --- |
-| Administrador | `admin` | `AdminLocal2026!` |
-| Docente | `docente` | `DocenteLocal2026!` |
+```powershell
+C:\xampp\php\php.exe herramientas/crear_administrador.php
+```
 
-Las contraseñas de estas cuentas están documentadas únicamente para facilitar la prueba local. Las cuentas nuevas se crean desde Administración → Usuarios. El usuario debe tener entre 3 y 40 caracteres y admite letras sin tildes, números, puntos, guiones y guiones bajos. Se guarda en minúsculas y debe ser único. La base de datos guarda hashes de las contraseñas; las contraseñas existentes no se pueden consultar.
+El comando muestra el usuario `admin-inicial` y una contraseña aleatoria. Entra con esa cuenta y crea las cuentas definitivas desde **Administración → Usuarios**. Para retirar el acceso inicial, entra con el administrador definitivo y desactiva `admin-inicial`. Los nombres de usuario son únicos y tienen de 3 a 40 caracteres.
 
 Al iniciar una instalación anterior, la actualización convierte el correo en un nombre de usuario tomando su parte anterior a `@`. Si hay coincidencias, añade un sufijo como `.1`. Conserva los identificadores, contraseñas, materiales y evaluaciones. En SQLite crea un respaldo completo previo dentro de `almacenamiento/respaldos`.
 
 ## Probar una evaluación
 
-1. Ingresa como docente. Encontrarás un PDF de demostración con cuatro preguntas.
+1. Ingresa como docente, carga un PDF con texto seleccionable y guarda las preguntas revisadas.
 2. Selecciona su tarjeta y pulsa **Crear evaluación**.
 3. Elige 15, 20 o 30 segundos por pregunta y crea la sala.
 4. Pulsa **Vista participante** para abrir otra pestaña. Escribe un nombre y elige un avatar.
@@ -50,16 +51,11 @@ La lectura de PDF usa Smalot/PdfParser. Los archivos deben contener texto selecc
 
 ## Configurar OpenRouter
 
-EvaluaEIC lee la clave y el modelo de OpenRouter del archivo privado `.env`:
-
-```ini
-OPENROUTER_API_KEY=tu_clave_privada
-OPENROUTER_MODEL=nvidia/nemotron-3-ultra-550b-a55b:free
-```
+EvaluaEIC lee `OPENROUTER_API_KEY` y `OPENROUTER_MODEL` del archivo privado `configuracion/servidor.php`.
 
 Para usar otro modelo de texto de OpenRouter, modifica `OPENROUTER_MODEL` y reinicia PHP. Usa el identificador exacto que figura en el [catálogo de OpenRouter](https://openrouter.ai/models). El sufijo `:free` identifica la variante gratuita.
 
-La clave y el modelo se pueden definir como variables del entorno del servidor. El cargador existente lee `.env` cuando una variable no está definida en el entorno. Ese archivo está fuera de la carpeta pública y excluido de Git. La clave no aparece en el navegador, en los errores ni en los diagnósticos.
+Las variables del entorno del servidor tienen prioridad sobre el archivo privado. Git excluye `configuracion/servidor.php`.
 
 Primero comprueba PHP y HTTPS sin usar una clave:
 
@@ -83,12 +79,12 @@ Las variantes `:free` tienen límites de uso. Si se alcanza la cuota, la interfa
 
 El documento y sus preguntas se guardan como material definitivo únicamente cuando el docente aprueba el borrador. Reenviar el guardado del mismo borrador devuelve el material existente, sin duplicarlo.
 
-Para el traslado posterior, sigue `documentacion/instalacion_servidor.md`.
+Para publicar en Bitnami bajo una ruta como `https://nombredelservidor/EvaluaEIC`, sigue `documentacion/instalacion_servidor.md`.
 
 ## Participar desde teléfonos en la misma red
 
 1. Conecta el equipo y los teléfonos a la misma red local.
-2. En `.env`, cambia `APLICACION_URL` por la dirección del equipo, por ejemplo `http://192.168.1.20:8080`.
+2. En `configuracion/servidor.php`, cambia `APLICACION_URL` por la dirección del equipo, por ejemplo `http://192.168.1.20:8080`.
 3. Inicia con `.\iniciar.ps1 -RedLocal`.
 4. Permite el puerto elegido para la red privada si Windows lo solicita y crea una sala nueva.
 
@@ -96,23 +92,15 @@ El QR contiene ese enlace. Un teléfono no puede acceder al `localhost` de otro 
 
 ## Base de datos
 
-SQLite es la opción inicial: los datos se guardan en `almacenamiento/evaluaia.sqlite`. No requiere un servicio adicional. El esquema conserva las seis entidades principales de la descripción y añade configuración, borradores e intentos de ingreso.
+La instalación local usa SQLite y conserva la base anterior de `almacenamiento`. Las nuevas bases locales usan el nombre `evaluaeic.sqlite`.
 
 Para MySQL 8 o MariaDB compatible:
 
-1. Crea una base de datos vacía llamada `evaluaia` con `utf8mb4`.
-2. Cambia en `.env` `BD_MOTOR=mysql` y completa host, puerto, nombre, usuario y clave.
-3. Ejecuta `C:\xampp\php\php.exe herramientas/preparar.php` y vuelve a iniciar.
+1. Selecciona la base asignada e importa `database/instalar_evaluaeic.sql`.
+2. Cambia `BD_MOTOR` a `mysql` en `configuracion/servidor.php` y completa host, puerto, nombre, usuario y clave.
+3. En una base nueva, ejecuta `php herramientas/crear_administrador.php`.
 
-`base_datos/esquema_mysql.sql` contiene el esquema. Cambiar de motor inicia una base separada: no traslada automáticamente los datos de SQLite. La versión SQLite está comprobada con pruebas funcionales; la conexión MySQL queda implementada y requiere validación con tu servidor y sus credenciales.
-
-## Usar Apache de XAMPP
-
-Para varias solicitudes simultáneas, utiliza Apache con un host local cuyo `DocumentRoot` apunte directamente a `C:/Users/César/Documents/EvaluaEIC/publico`. Activa `mod_rewrite`, permite `AllowOverride All` y configura `APLICACION_URL` con el host usado. No publiques la carpeta raíz del proyecto.
-
-En el `php.ini` de Apache configura `upload_max_filesize=12M`, `post_max_size=16M`, `memory_limit=256M` y `max_execution_time=210`. El directorio temporal de cargas debe ser escribible. El script `iniciar.ps1` ya configura estos valores para el servidor integrado.
-
-El servidor integrado de PHP en Windows procesa las solicitudes de una en una. Es útil para desarrollo y pruebas pequeñas; una generación de IA larga bloquea otras solicitudes durante su ejecución. Prepara las preguntas antes de iniciar una evaluación o usa Apache para la concurrencia. El límite de 300 inscritos por sala es un límite de registro, no una capacidad de carga certificada.
+Cambiar de motor inicia una base separada. Si necesitas llevar los registros locales, planifica la migración de SQLite y sus PDF antes de la puesta en marcha.
 
 ## Organización
 
@@ -121,12 +109,12 @@ EvaluaEIC/
 ├── aplicacion/
 │   ├── Controladores/       Acceso, materiales, salas y administración
 │   └── Servicios/           Datos, seguridad, PDF, IA y evaluación
-├── base_datos/              Esquemas de SQLite y MySQL
-├── configuracion/           Lectura de configuración y carga de clases
+├── database/                SQL de instalación para MySQL y MariaDB
+├── configuracion/           Ajustes privados, incluido servidor.php
 ├── documentacion/           Arquitectura y decisiones de esta versión
 ├── herramientas/            Preparación inicial y Composer
 ├── almacenamiento/          Base de datos, sesiones, PDF y temporales privados
-├── publico/                 Única carpeta que sirve el navegador
+├── publico/                 Entrada de la aplicación y recursos del navegador
 │   ├── css/                 Estilos locales
 │   ├── imagenes/            Marca del proyecto
 │   └── js/                  Panel, ingreso, participantes y biblioteca QR
@@ -134,7 +122,8 @@ EvaluaEIC/
 ├── referencia/              Demo y descripción originales
 ├── terceros/                Bibliotecas administradas por Composer
 ├── vistas/                  Plantillas PHP en español
-├── .env.ejemplo             Configuración de referencia
+├── .htaccess                Rutas y protección de archivos en Apache
+├── index.php                Entrada de Apache al copiar la carpeta
 ├── iniciar.ps1              Inicio local en Windows
 └── servidor.php             Enrutamiento del servidor integrado
 ```
@@ -147,15 +136,9 @@ Con Composer instalado y las extensiones PHP PDO, pdo_sqlite (o pdo_mysql), mbst
 
 ```powershell
 composer install
-Copy-Item .env.ejemplo .env
 C:\xampp\php\php.exe herramientas/preparar.php
+C:\xampp\php\php.exe herramientas/crear_administrador.php
 .\iniciar.ps1
-```
-
-Si utilizas el Composer incluido en esta carpeta:
-
-```powershell
-C:\xampp\php\php.exe -d extension=zip herramientas/composer.phar install
 ```
 
 `composer.lock` fija las versiones del lector PDF. El generador QR está incluido en `publico/js/terceros` junto con su licencia; no depende de un CDN.

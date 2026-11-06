@@ -1,6 +1,6 @@
 <main class="ingreso-contenedor">
     <section class="tarjeta-ingreso">
-        <img class="logo-ingreso" src="/imagenes/logo-eic.png" alt="Escuela de Investigación Criminal" width="112" height="112">
+        <img class="logo-ingreso" src="<?= escapar(ruta_app('/imagenes/logo-eic.png')) ?>" alt="Escuela de Investigación Criminal" width="112" height="112">
         <div class="centrado"><h1 class="marca-titulo">Evalua<span>EIC</span></h1><p class="institucion-ingreso">Escuela de Investigación Criminal</p></div>
         <form id="formulario-ingreso" class="formulario">
             <div class="separador-etiqueta">ACCESO INSTITUCIONAL</div>
@@ -9,7 +9,7 @@
             <p id="error-ingreso" class="mensaje-error" role="alert" hidden></p>
             <button class="boton primario ancho" type="submit">Iniciar sesión <svg class="icono"><use href="#i-flecha"/></svg></button>
         </form>
-        <div class="acceso-participante"><a class="boton ambar ancho" href="/participar"><svg class="icono"><use href="#i-qr"/></svg> Acceso de participantes</a></div>
+        <div class="acceso-participante"><a class="boton ambar ancho" href="<?= escapar(ruta_app('/participar')) ?>"><svg class="icono"><use href="#i-qr"/></svg> Acceso de participantes</a></div>
     </section>
     <p class="pie-ingreso">EIC · Ciencia, ética y tecnología</p>
 </main>

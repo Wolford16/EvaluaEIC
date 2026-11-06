@@ -1,13 +1,13 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Servicios;
+namespace EvaluaEIC\Servicios;
 
 /** Cliente exclusivo de OpenRouter. El transporte opcional permite pruebas sin claves reales. */
 final class ClienteOpenRouter {
     private ?\Closure $transporte;
     private string $clave;
-    public readonly string $modelo;
-    public readonly array $ajustes;
+    public string $modelo;
+    public array $ajustes;
     public int $solicitudes = 0;
     public int $tokensUsados = 0;
     public string $formato = 'json_texto';
@@ -25,7 +25,7 @@ final class ClienteOpenRouter {
 
     public function validarConfiguracion(): void {
         if ($this->clave === '' || $this->modelo === '') {
-            throw new ErrorAplicacion('Completa OPENROUTER_API_KEY y OPENROUTER_MODEL en el archivo .env.', 503, 'openrouter_configuracion');
+            throw new ErrorAplicacion('Completa OPENROUTER_API_KEY y OPENROUTER_MODEL en el archivo configuracion/servidor.php.', 503, 'openrouter_configuracion');
         }
         if (!preg_match('/^[a-zA-Z0-9._:\/-]{1,150}$/D', $this->modelo) || preg_match('/[\s\x00-\x1f\x7f]/', $this->clave)) {
             throw new ErrorAplicacion('Revisa la clave y el identificador del modelo de OpenRouter.', 503, 'openrouter_configuracion');
@@ -44,7 +44,7 @@ final class ClienteOpenRouter {
             }
         }
         if ($datos === null) {
-            throw new ErrorAplicacion('OpenRouter no encuentra el modelo configurado. Revisa OPENROUTER_MODEL en .env.', 503, 'openrouter_modelo');
+            throw new ErrorAplicacion('OpenRouter no encuentra el modelo configurado. Revisa OPENROUTER_MODEL en configuracion/servidor.php.', 503, 'openrouter_modelo');
         }
         $contexto = filter_var($datos['context_length'] ?? 8192, FILTER_VALIDATE_INT);
         $salida = filter_var($datos['top_provider']['max_completion_tokens'] ?? 4096, FILTER_VALIDATE_INT);
@@ -100,7 +100,7 @@ final class ClienteOpenRouter {
         }
         try { $objeto = json_decode($contenido, true, 64, JSON_THROW_ON_ERROR); }
         catch (\JsonException) { throw new ErrorAplicacion('OpenRouter no devolvió un JSON válido.', 502, 'openrouter_json'); }
-        if (!is_array($objeto) || array_is_list($objeto)) {
+        if (!is_array($objeto) || es_lista($objeto)) {
             throw new ErrorAplicacion('La respuesta de OpenRouter no tiene el formato esperado.', 502, 'openrouter_json');
         }
         return $objeto;
@@ -177,7 +177,7 @@ final class ClienteOpenRouter {
         return ['estado' => $estado, 'cuerpo' => $cuerpo, 'cabeceras' => $recibidas, 'error' => $error];
     }
 
-    private function rechazarHttp(int $estado, array $json, array $cabeceras): never {
+    private function rechazarHttp(int $estado, array $json, array $cabeceras): void {
         $mensajeProveedor = strtolower((string)($json['error']['message'] ?? ''));
         $codigo = strtolower((string)($json['error']['code'] ?? ''));
         if ($estado === 429) {
@@ -186,7 +186,7 @@ final class ClienteOpenRouter {
             $mensaje = 'OpenRouter alcanzó un límite de uso.' . ($espera ? " Espera {$espera} segundos antes de reintentar." : ' Espera a que se restablezca la cuota.');
             throw new ErrorAplicacion($mensaje, 429, 'openrouter_limite', $espera);
         }
-        if ($estado === 401) throw new ErrorAplicacion('OpenRouter rechazó la clave API. Revisa OPENROUTER_API_KEY en .env.', 503, 'openrouter_clave');
+        if ($estado === 401) throw new ErrorAplicacion('OpenRouter rechazó la clave API. Revisa OPENROUTER_API_KEY en configuracion/servidor.php.', 503, 'openrouter_clave');
         if ($estado === 402) throw new ErrorAplicacion('OpenRouter indica que el saldo o el límite de gasto de la clave es insuficiente para esta solicitud.', 503, 'openrouter_saldo');
         if ($estado === 403) throw new ErrorAplicacion('La cuenta de OpenRouter no tiene permiso para usar este modelo.', 503, 'openrouter_permisos');
         $hablaDeFormato = str_contains($mensajeProveedor, 'response_format') || str_contains($mensajeProveedor, 'json_schema') || str_contains($mensajeProveedor, 'strict');
@@ -196,7 +196,7 @@ final class ClienteOpenRouter {
             throw new ErrorAplicacion('El modelo no admite este formato de JSON.', 502, 'openrouter_formato_no_compatible');
         }
         if ($estado === 404 || str_contains($codigo, 'model_not_found') || str_contains($mensajeProveedor, 'not a valid model id')) {
-            throw new ErrorAplicacion('OpenRouter no tiene un proveedor disponible para este modelo. Reintenta o revisa OPENROUTER_MODEL en .env.', 503, 'openrouter_modelo');
+            throw new ErrorAplicacion('OpenRouter no tiene un proveedor disponible para este modelo. Reintenta o revisa OPENROUTER_MODEL en configuracion/servidor.php.', 503, 'openrouter_modelo');
         }
         if ($estado === 413 || str_contains($codigo, 'context_length') || str_contains($mensajeProveedor, 'context length') || str_contains($mensajeProveedor, 'request too large')) {
             throw new ErrorAplicacion('La solicitud supera el límite de tokens del modelo o de la cuenta. Reduce el documento o ajusta el presupuesto de OpenRouter.', 422, 'openrouter_contexto');

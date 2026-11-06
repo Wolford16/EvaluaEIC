@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Servicios;
+namespace EvaluaEIC\Servicios;
 
 /** Actualiza las instalaciones existentes sin recrear cuentas ni evaluaciones. */
 final class Migraciones {

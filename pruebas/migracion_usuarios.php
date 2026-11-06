@@ -7,7 +7,7 @@ mkdir($directorio, 0700, true);
 putenv('BD_MOTOR=sqlite');
 putenv('BD_ARCHIVO=' . $directorio . '/datos.sqlite');
 require $raiz . '/configuracion/aplicacion.php';
-use EvaluaIA\Servicios\{BaseDatos, Migraciones, DatosIniciales};
+use EvaluaEIC\Servicios\{BaseDatos, Migraciones, DatosIniciales};
 $comprobaciones = 0;
 function comprobar(bool $condicion, string $mensaje): void {
     global $comprobaciones;
@@ -15,7 +15,7 @@ function comprobar(bool $condicion, string $mensaje): void {
     $comprobaciones++;
 }
 try {
-    $esquema = str_replace('usuario VARCHAR(40)', 'correo VARCHAR(150)', file_get_contents(RAIZ . '/base_datos/esquema_sqlite.sql'));
+    $esquema = str_replace('usuario VARCHAR(40)', 'correo VARCHAR(150)', file_get_contents(RAIZ . '/herramientas/esquema_sqlite.sql'));
     BaseDatos::conexion()->exec($esquema);
     $hash = password_hash('ClaveAnterior2026!', PASSWORD_DEFAULT);
     foreach (['admin@institucion.edu', 'docente@institucion.edu', 'docente@otra.edu'] as $indice => $correo) {
@@ -34,7 +34,7 @@ try {
     comprobar(in_array('usuario', $columnas, true) && !in_array('correo', $columnas, true), 'La columna correo se reemplaza por usuario.');
     $usuarios = BaseDatos::ejecutar('SELECT * FROM usuarios ORDER BY id')->fetchAll();
     comprobar(count($usuarios) === 3, 'Se conservan las tres cuentas.');
-    comprobar(array_column($usuarios, 'id') === [1,2,3], 'Se conservan los identificadores.');
+    comprobar(array_map('intval', array_column($usuarios, 'id')) === [1,2,3], 'Se conservan los identificadores.');
     comprobar(array_column($usuarios, 'usuario') === ['admin','docente','docente.1'], 'Los usuarios son válidos y únicos.');
     comprobar(count(array_unique(array_column($usuarios, 'clave_hash'))) === 1 && $usuarios[0]['clave_hash'] === $hash, 'Se conservan los hashes existentes.');
     comprobar(password_verify('ClaveAnterior2026!', $usuarios[1]['clave_hash']), 'La contraseña anterior sigue siendo válida.');

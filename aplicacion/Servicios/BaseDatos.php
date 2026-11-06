@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace EvaluaIA\Servicios;
+namespace EvaluaEIC\Servicios;
 use PDO;
 
 final class BaseDatos {
@@ -8,11 +8,13 @@ final class BaseDatos {
     public static function conexion(): PDO {
         if (self::$conexion) return self::$conexion;
         if (entorno('BD_MOTOR', 'sqlite') === 'mysql') {
-            $dsn = 'mysql:host=' . entorno('BD_HOST', '127.0.0.1') . ';port=' . entorno('BD_PUERTO', '3306') . ';dbname=' . entorno('BD_NOMBRE', 'evaluaia') . ';charset=utf8mb4';
+            $dsn = 'mysql:host=' . entorno('BD_HOST', '127.0.0.1') . ';port=' . entorno('BD_PUERTO', '3306') . ';dbname=' . entorno('BD_NOMBRE', 'evaluaeic') . ';charset=utf8mb4';
             $pdo = new PDO($dsn, entorno('BD_USUARIO', 'root'), entorno('BD_CLAVE'));
         } else {
             if (!is_dir(RAIZ . '/almacenamiento')) mkdir(RAIZ . '/almacenamiento', 0700, true);
-            $pdo = new PDO('sqlite:' . entorno('BD_ARCHIVO', RAIZ . '/almacenamiento/evaluaia.sqlite'));
+            $rutaAnterior = RAIZ . '/almacenamiento/evaluaia.sqlite';
+            $rutaLocal = is_file($rutaAnterior) ? $rutaAnterior : RAIZ . '/almacenamiento/evaluaeic.sqlite';
+            $pdo = new PDO('sqlite:' . entorno('BD_ARCHIVO', $rutaLocal));
             $pdo->exec('PRAGMA foreign_keys = ON');
             $pdo->exec('PRAGMA busy_timeout = 5000');
             $pdo->exec('PRAGMA journal_mode = WAL');
