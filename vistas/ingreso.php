@@ -6,17 +6,27 @@
             <p role="status"><?= escapar($mensajeInstalacion) ?></p>
         <?php endif; ?>
         <?php if ($instalacionDisponible): ?>
-            <form method="post" action="<?= escapar(ruta_app('/ingreso')) ?>" class="formulario">
+            <?php if ($primerAcceso ?? false): ?>
+            <?php $usuarioInicial = is_string($_POST['usuario'] ?? null) ? mb_substr($_POST['usuario'], 0, 40) : ''; ?>
+            <form data-instalacion method="post" action="<?= escapar(ruta_app('/crear_administrador.php')) ?>" class="formulario">
                 <div class="separador-etiqueta">PRIMER ADMINISTRADOR</div>
                 <input type="hidden" name="csrf" value="<?= escapar($csrf) ?>">
-                <label>Usuario<input name="usuario" type="text" value="admin-inicial" minlength="3" maxlength="40" autocomplete="username" required></label>
+                <input type="hidden" name="accion" value="guardar">
+                <label>Nombre completo<input name="nombre" type="text" minlength="2" maxlength="120" autocomplete="name" required></label>
+                <label>Usuario<input name="usuario" type="text" value="<?= escapar($usuarioInicial) ?>" minlength="3" maxlength="40" autocomplete="username" required></label>
                 <label>Contraseña<input name="clave" type="password" minlength="10" maxlength="72" autocomplete="new-password" required></label>
-                <label>Código de instalación<input name="clave_instalacion" type="password" autocomplete="off" required></label>
-                <?php if (strlen(entorno('CLAVE_INSTALACION')) < 24): ?>
-                    <p class="texto-suave texto-pequeno">Copia el código de <code>almacenamiento/clave_instalacion.txt</code> en el servidor.</p>
-                <?php endif; ?>
+                <p data-resultado-instalacion role="status" hidden></p>
                 <button class="boton primario ancho" type="submit">Crear administrador</button>
             </form>
+            <?php else: ?>
+            <form data-instalacion method="post" action="<?= escapar(ruta_app('/crear_administrador.php')) ?>" class="formulario">
+                <input type="hidden" name="csrf" value="<?= escapar($csrf) ?>">
+                <input type="hidden" name="accion" value="entrar">
+                <p data-resultado-instalacion role="status" hidden></p>
+                <button class="boton primario ancho" type="submit">Primer acceso de administrador</button>
+            </form>
+            <?php endif; ?>
+            <p class="texto-pequeno"><a href="<?= escapar(ruta_app('/index.php?verificar_bd=1')) ?>">Verificar base de datos</a></p>
         <?php else: ?>
         <form id="formulario-ingreso" class="formulario">
             <div class="separador-etiqueta">ACCESO INSTITUCIONAL</div>

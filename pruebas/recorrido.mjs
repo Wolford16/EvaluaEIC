@@ -25,10 +25,49 @@ class Cliente {
   async pagina(ruta){const r=await fetch(`http://127.0.0.1:8091${ruta}`,{headers:{Cookie:this.cookie},redirect:'manual'});this.actualizar(r);const html=await r.text();this.csrf=html.match(/name="csrf-token" content="([a-f0-9]+)"/)?.[1]||this.csrf;return {r,html};}
   actualizar(r){const cookie=r.headers.get('set-cookie');if(cookie)this.cookie=cookie.split(';')[0];}
   async api(accion,datos=null,token=''){const headers={Cookie:this.cookie,'X-CSRF-Token':this.csrf};if(token)headers.Authorization=`Bearer ${token}`;const opciones={headers,method:datos===null?'GET':'POST'};if(datos instanceof FormData)opciones.body=datos;else if(datos!==null){headers['Content-Type']='application/json';opciones.body=JSON.stringify(datos);}const r=await fetch(`http://127.0.0.1:8091/api/${accion}`,opciones);this.actualizar(r);const valor=await r.json();return {...valor,estadoHttp:r.status};}
+  async formulario(ruta,datos){
+    const r=await fetch(`http://127.0.0.1:8091${ruta}`,{
+      method:'POST',headers:{Cookie:this.cookie,Accept:'application/json'},redirect:'manual',
+      body:new URLSearchParams({csrf:this.csrf,...datos})
+    });
+    this.actualizar(r);
+    return {...await r.json(),estadoHttp:r.status};
+  }
   async ingresar(usuario,clave){await this.pagina('/ingreso');const r=await this.api('ingresar',{usuario,clave});comprobar(r.ok,'Ingreso válido');await this.pagina(r.destino);}
 }
 try {
   comprobar(ejecutarPhp("echo EvaluaEIC\\Servicios\\BaseDatos::ejecutar('SELECT COUNT(*) FROM usuarios')->fetchColumn();")==='0','La instalación comienza sin cuentas de ejemplo');
+  for(let intento=0;intento<30;intento++){try{await fetch('http://127.0.0.1:8091/ingreso');break;}catch{await esperar(100);}}
+  const instalador=new Cliente(),instaladorAjeno=new Cliente();
+  const ingresoInicial=await instalador.pagina('/ingreso');
+  comprobar(ingresoInicial.html.includes('Primer acceso de administrador')&&!ingresoInicial.html.includes('name="clave_instalacion"'),'El primer acceso usa un botón y no pide el código de diagnóstico');
+  await instaladorAjeno.pagina('/crear_administrador.php');
+  comprobar((await instaladorAjeno.formulario('/crear_administrador.php',{accion:'guardar'})).estadoHttp===403,'Guardar el primer usuario exige haber abierto el primer acceso');
+  const csrfInicial=instalador.csrf;
+  instalador.csrf='invalido';
+  comprobar((await instalador.formulario('/crear_administrador.php',{accion:'entrar'})).estadoHttp===403,'El botón de primer acceso comprueba la sesión');
+  instalador.csrf=csrfInicial;
+  const primerAcceso=await instalador.formulario('/crear_administrador.php',{accion:'entrar'});
+  comprobar(primerAcceso.ok,'El botón abre la creación del administrador sin credenciales');
+  const formularioInicial=await instalador.pagina(primerAcceso.destino);
+  comprobar(formularioInicial.html.includes('name="nombre"')&&formularioInicial.html.includes('name="usuario"')&&!formularioInicial.html.includes('name="clave_instalacion"'),'El primer administrador solo necesita nombre, usuario y contraseña');
+  comprobar((await instalador.api('usuarios')).estadoHttp===401,'El primer acceso está limitado a crear la cuenta real');
+  const datosIniciales={accion:'guardar',nombre:'Administración inicial',usuario:'administracion.inicial',clave:'ClaveInicialÁ2026!'};
+  comprobar((await instalador.formulario('/crear_administrador.php',{...datosIniciales,clave:'corta'})).estadoHttp===422 &&
+    ejecutarPhp("echo EvaluaEIC\\Controladores\\Instalacion::completada()?'cerrada':'abierta';")==='abierta','Un dato inválido no cierra la instalación');
+  const altaInicial=await instalador.formulario('/crear_administrador.php',datosIniciales);
+  comprobar(altaInicial.estadoHttp===201&&altaInicial.destino.endsWith('/admin'),'La cuenta real se guarda y entra al panel directamente');
+  comprobar((await instalador.pagina(altaInicial.destino)).r.status===200&&(await instalador.api('usuarios')).usuarios.length===1,'La sesión corresponde al único administrador guardado');
+  comprobar(ejecutarPhp("echo password_verify('ClaveInicialÁ2026!',EvaluaEIC\\Servicios\\BaseDatos::ejecutar('SELECT clave_hash FROM usuarios')->fetchColumn())?'correcta':'incorrecta';")==='correcta','La contraseña se guarda como hash compatible y conserva los caracteres');
+  const ingresoTrasAlta=await instaladorAjeno.pagina('/ingreso');
+  comprobar(!ingresoTrasAlta.html.includes('Primer acceso de administrador')&&ingresoTrasAlta.html.includes('formulario-ingreso'),'El botón desaparece después de crear la cuenta');
+  comprobar((await instaladorAjeno.formulario('/crear_administrador.php',{accion:'entrar'})).estadoHttp===409,'Otra sesión no puede reabrir el primer acceso');
+  await instalador.api('salir',{});
+  await instalador.ingresar(datosIniciales.usuario,datosIniciales.clave);
+  // Solo en la base desechable del recorrido, comprueba el cierre permanente y restaura el estado vacío para probar el comando.
+  ejecutarPhp('EvaluaEIC\\Servicios\\BaseDatos::ejecutar("DELETE FROM usuarios");');
+  comprobar(!(await instaladorAjeno.pagina('/ingreso')).html.includes('Primer acceso de administrador'),'Eliminar todas las cuentas no vuelve a habilitar el primer acceso');
+  ejecutarPhp("EvaluaEIC\\Servicios\\BaseDatos::ejecutar('DELETE FROM configuraciones WHERE nombre=?',['primer_administrador_creado']);");
   const arranque=spawnSync(php,['herramientas/crear_administrador.php'],{cwd:raiz,env:entorno,encoding:'utf8'});
   const claveInicial=arranque.stdout?.match(/Contraseña: ([a-f0-9]{36})/)?.[1];
   comprobar(arranque.status===0 && claveInicial,'El comando crea un administrador con contraseña aleatoria');

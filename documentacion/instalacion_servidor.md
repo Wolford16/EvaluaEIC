@@ -6,10 +6,12 @@
 2. Comprueba que `https://dominio/EvaluaEIC/database/instalar_evaluaeic.sql` y `https://dominio/EvaluaEIC/almacenamiento/` devuelven 403 o 404. Si alguno abre o descarga contenido, el encargado debe habilitar las reglas de Apache para la carpeta antes de usar la instalación.
 3. En phpMyAdmin, selecciona la base asignada a EvaluaEIC e importa `database/instalar_evaluaeic.sql`. Si todavía falta la base, créala primero con la cuenta de instalación. La base puede llamarse `evaluaeic` o usar el nombre que asigne la institución. [Importar en phpMyAdmin](https://docs.phpmyadmin.net/en/latest/import_export.html).
 4. Edita `configuracion/servidor.php` en la **copia del servidor**. Escribe la URL base `https://dominio/EvaluaEIC` en `APLICACION_URL`, cambia `BD_MOTOR` a `mysql` y completa `BD_HOST`, `BD_PUERTO`, `BD_NOMBRE`, `BD_USUARIO` y `BD_CLAVE`. En el mismo archivo están la clave y el modelo de OpenRouter.
-5. Abre `https://dominio/EvaluaEIC`. Si la base está vacía, el login muestra **Crear administrador**. Copia el código que se generó en `almacenamiento/clave_instalacion.txt` en el servidor y elige el usuario y la contraseña. Una vez creada la cuenta, el login vuelve a su pantalla habitual.
+5. Abre `https://dominio/EvaluaEIC`. Si la base está vacía, pulsa **Primer acceso de administrador**. Escribe tu nombre, usuario y contraseña, y pulsa **Crear administrador**. La cuenta se guarda y entras al panel. El primer acceso queda cerrado.
 6. En **Administración → OpenRouter**, prueba la conexión. Después carga un PDF, guarda las preguntas, crea una sala y escanea el QR desde un teléfono.
 
-Si necesitas revisar la conexión a la base, abre `https://dominio/EvaluaEIC/verificar_bd.php` y usa el mismo código. Si ya habías configurado `CLAVE_INSTALACION` con al menos 24 caracteres, ese valor tiene prioridad.
+Si necesitas revisar la conexión a la base, abre `https://dominio/EvaluaEIC/index.php?verificar_bd=1` y usa el código de `almacenamiento/clave_instalacion.txt` del servidor. Si ya habías configurado `CLAVE_INSTALACION` con al menos 24 caracteres, ese valor tiene prioridad.
+
+En una instalación nueva publicada en Internet, cualquier visitante puede pulsar el primer acceso hasta que se guarde la primera cuenta. Completa este paso al subir el sistema.
 
 EvaluaEIC usa PHP 8.0 o superior con PDO, pdo_mysql, cURL, mbstring, fileinfo, iconv y zlib. El PHP de Apache necesita escritura en `almacenamiento`, acceso HTTPS a OpenRouter y límites de carga de 12 MB por archivo y 16 MB por solicitud. Para generación de preguntas, configura al menos 210 segundos de tiempo de ejecución.
 
@@ -19,8 +21,8 @@ El SQL crea las tablas para una instalación nueva. Para llevar registros de SQL
 
 Copia estos archivos a las mismas rutas dentro de `EvaluaEIC` en el servidor.
 
-- `.htaccess` y `publico/index.php`
-- `aplicacion/Controladores/Instalacion.php` y `aplicacion/Servicios/Seguridad.php`
+- `.htaccess`, `crear_administrador.php` de la raíz y `publico/index.php`
+- `aplicacion/Controladores/Instalacion.php`, `aplicacion/Controladores/Autenticacion.php` y `aplicacion/Servicios/Seguridad.php`
 - `herramientas/crear_administrador.php` y `herramientas/verificar_bd.php`
 - `vistas/ingreso.php`, `vistas/instalacion.php` y `publico/js/ingreso.js`
 

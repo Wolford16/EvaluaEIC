@@ -12,9 +12,14 @@ final class Autenticacion {
         if (!self::verificarClave($clave, $hash, $identificador)) {
             throw new ErrorAplicacion('Usuario o contraseña incorrectos, o cuenta inactiva.', 401);
         }
+        return self::abrirSesion($usuario);
+    }
+
+    public static function abrirSesion(array $usuario): array {
+        unset($_SESSION['primer_acceso']);
         session_regenerate_id(true);
         $_SESSION['usuario_id'] = (int)$usuario['id'];
-        $_SESSION['credencial'] = hash('sha256', $hash);
+        $_SESSION['credencial'] = hash('sha256', $usuario['clave_hash']);
         $_SESSION['csrf'] = bin2hex(random_bytes(32));
         return ['destino' => ruta_app($usuario['rol'] === 'admin' ? '/admin' : '/docente')];
     }

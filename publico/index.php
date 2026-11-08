@@ -23,6 +23,10 @@ header('Cache-Control: no-store');
 $solicitada = rtrim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/', '/');
 $dentroDeLaApp = $rutaBase === '' || $solicitada === $rutaBase || str_starts_with($solicitada, $rutaBase . '/');
 $ruta = $dentroDeLaApp ? (substr($solicitada, strlen($rutaBase)) ?: '/') : '';
+if ($ruta === '/index.php') {
+    if (($_GET['verificar_bd'] ?? null) === '1') $ruta = '/verificar_bd.php';
+    elseif ($_SERVER['REQUEST_METHOD'] === 'POST') $ruta = '/ingreso';
+}
 $esApi = str_starts_with($ruta,'/api/');
 try {
     if ($ruta === '/verificar_bd.php') {
@@ -88,6 +92,11 @@ try {
     elseif ($ruta==='/ingreso') {
         $vista='ingreso';
         [$instalacionDisponible, $mensajeInstalacion] = Instalacion::prepararIngreso();
+    }
+    elseif ($ruta==='/crear_administrador.php') {
+        $vista='ingreso';
+        [$instalacionDisponible, $mensajeInstalacion] = Instalacion::prepararPrimerAcceso();
+        $primerAcceso = $instalacionDisponible && !empty($_SESSION['primer_acceso']);
     }
     elseif (in_array($ruta,['/admin','/docente'],true)) {
         if (!$usuario) { header('Location: '.ruta_app('/ingreso')); exit; }

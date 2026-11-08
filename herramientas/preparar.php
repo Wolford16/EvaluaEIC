@@ -16,6 +16,6 @@ try {
     foreach($vencidos as $b){$ruta=RAIZ.'/almacenamiento/documentos/'.basename($b['ruta_archivo']);if(is_file($ruta))unlink($ruta);BaseDatos::ejecutar('DELETE FROM borradores WHERE token=?',[$b['token']]);}
     echo "EvaluaEIC preparada. Base de datos: {$motor}.\n";
     if (!BaseDatos::ejecutar("SELECT id FROM usuarios WHERE rol='admin' LIMIT 1")->fetchColumn()) {
-        echo "Crea el primer administrador con php herramientas/crear_administrador.php.\n";
+        echo "Abre el sistema y pulsa Primer acceso de administrador.\n";
     }
 }catch(Throwable $error){fwrite(STDERR,"No se pudo preparar la base de datos: ".$error->getMessage()."\n");exit(1);}

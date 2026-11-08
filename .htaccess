@@ -4,6 +4,7 @@ CGIPassAuth On
 
 RewriteEngine On
 RewriteRule ^(?:index\.php)?$ - [END]
+RewriteRule ^crear_administrador\.php$ - [END]
 RewriteRule ^((?:css|js|imagenes)/[A-Za-z0-9_/-]+\.(?:css|js|png|svg))$ publico/$1 [END]
 RewriteRule ^verificar_bd\.php$ index.php [END]
 RewriteRule ^(?:ingreso|admin|docente|participar|(?:api|archivo|sala)/[A-Za-z0-9-]+)/?$ index.php [END]

@@ -18,8 +18,9 @@ try {
 }
 
 try {
-    $pdo->query('SELECT usuario, clave_hash, rol, estado FROM usuarios WHERE 1 = 0');
-    $tablas = ['documentos', 'preguntas', 'salas_evaluacion', 'participantes', 'respuestas_participantes', 'configuraciones', 'borradores', 'intentos_acceso'];
+    $pdo->query('SELECT id, nombre, usuario, clave_hash, rol, estado, creado_en FROM usuarios WHERE 1 = 0');
+    $pdo->query('SELECT nombre, valor FROM configuraciones WHERE 1 = 0');
+    $tablas = ['documentos', 'preguntas', 'salas_evaluacion', 'participantes', 'respuestas_participantes', 'borradores', 'intentos_acceso'];
     foreach ($tablas as $tabla) {
         $pdo->query("SELECT 1 FROM {$tabla} WHERE 1 = 0");
     }
@@ -28,4 +29,18 @@ try {
 }
 
 $motor = $mysql ? "MySQL/MariaDB, base {$base}" : 'SQLite';
-return "Conexión correcta con {$motor}. Las tablas de EvaluaEIC se pueden leer.";
+// Estas sentencias comprueban INSERT en las dos tablas del alta sin insertar filas.
+$pruebas = [
+    'configuraciones' => "INSERT INTO configuraciones (nombre, valor) SELECT 'diagnostico', '1' WHERE 1 = 0",
+    'usuarios' => "INSERT INTO usuarios (nombre, usuario, clave_hash, rol, creado_en)
+                   SELECT 'Diagnóstico', 'diagnostico', '', 'admin', '' WHERE 1 = 0",
+];
+foreach ($pruebas as $tabla => $sql) {
+    try {
+        $pdo->exec($sql);
+    } catch (PDOException $error) {
+        error_log("EvaluaEIC no pudo comprobar la escritura en {$tabla}. SQLSTATE " . $error->getCode() . ', código ' . ($error->errorInfo[1] ?? 'sin código'));
+        throw new ErrorAplicacion("Conexión correcta con {$motor}. Falló la comprobación de escritura en {$tabla}. Revisa el permiso INSERT y la estructura de esa tabla.", 503);
+    }
+}
+return "Conexión correcta con {$motor}. Las tablas de EvaluaEIC se pueden leer y se comprobó el permiso de escritura necesario para crear el primer administrador.";

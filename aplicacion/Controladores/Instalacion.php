@@ -17,8 +17,8 @@ final class Instalacion {
         )->fetchColumn();
     }
 
-    public static function crearAdministrador(array $datos, bool $soloBaseVacia = false): void {
-        BaseDatos::transaccion(static function () use ($datos, $soloBaseVacia): void {
+    public static function crearAdministrador(array $datos, bool $soloBaseVacia = false): int {
+        return BaseDatos::transaccion(static function () use ($datos, $soloBaseVacia): int {
             // La clave primaria reserva la instalación antes de insertar al usuario.
             try {
                 BaseDatos::ejecutar('INSERT INTO configuraciones (nombre, valor) VALUES (?, ?)', [self::MARCA, '1']);
@@ -32,35 +32,78 @@ final class Instalacion {
             }
             $datos['rol'] = 'admin';
             Administracion::crearUsuario($datos);
+            return (int) BaseDatos::conexion()->lastInsertId();
         });
     }
 
     public static function prepararIngreso(): array {
         try {
             $completada = self::completada();
-        } catch (PDOException) {
-            return [false, 'Comprueba la conexión con la base de datos.'];
+        } catch (PDOException $error) {
+            error_log('EvaluaEIC no pudo consultar la instalación. SQLSTATE ' . $error->getCode());
+            return self::falloIngreso(new ErrorAplicacion('Comprueba la conexión con la base de datos.', 503), false);
         }
         if ($completada) {
+            unset($_SESSION['primer_acceso']);
+            if (self::solicitaJson()) {
+                self::responderJson(['ok' => false, 'mensaje' => 'La instalación inicial ya está cerrada. Abre el inicio de sesión.'], 409);
+            }
             $mensaje = $_SESSION['instalacion_completada'] ?? '';
             unset($_SESSION['instalacion_completada']);
             return [false, $mensaje];
         }
+        return [true, ''];
+    }
+
+    public static function prepararPrimerAcceso(): array {
+        [$disponible, $mensaje] = self::prepararIngreso();
+        if (!$disponible) return [false, $mensaje ?: 'El primer acceso ya está cerrado. Inicia sesión con tu cuenta.'];
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') return [true, ''];
+
         try {
-            $clave = self::clave();
-            if ($_SERVER['REQUEST_METHOD'] !== 'POST') return [true, ''];
-            self::validarClave($clave);
-            self::crearAdministrador(['nombre' => 'Administrador inicial'] + $_POST, true);
+            $csrf = $_POST['csrf'] ?? '';
+            Seguridad::csrf(is_string($csrf) ? $csrf : '');
+            $accion = $_POST['accion'] ?? '';
+            if ($accion === 'entrar') {
+                session_regenerate_id(true);
+                $_SESSION['primer_acceso'] = true;
+                $_SESSION['csrf'] = bin2hex(random_bytes(32));
+                if (self::solicitaJson()) self::responderJson(['ok' => true, 'destino' => ruta_app('/crear_administrador.php')], 200);
+                header('Location: ' . ruta_app('/crear_administrador.php'), true, 303);
+                exit;
+            }
+            if ($accion !== 'guardar' || empty($_SESSION['primer_acceso'])) {
+                throw new ErrorAplicacion('Pulsa Primer acceso para crear el administrador.', 403);
+            }
+            $id = self::crearAdministrador($_POST, true);
         } catch (ErrorAplicacion $error) {
-            http_response_code($error->estado);
-            return [$error->estado !== 404, $error->getMessage()];
-        } catch (PDOException) {
-            http_response_code(503);
-            return [true, 'No se pudo guardar el administrador. Revisa los permisos de escritura de la base.'];
+            return self::falloIngreso($error, $error->estado !== 404);
+        } catch (PDOException $error) {
+            error_log('EvaluaEIC no pudo crear el administrador inicial. SQLSTATE ' . $error->getCode() . ', código ' . ($error->errorInfo[1] ?? 'sin código'));
+            return self::falloIngreso(new ErrorAplicacion('No se pudo guardar el administrador. Revisa los permisos de escritura de la base.', 503), true);
         }
-        $_SESSION['instalacion_completada'] = 'Administrador creado. Ya puedes iniciar sesión.';
-        header('Location: ' . ruta_app('/ingreso'), true, 303);
+        $usuario = BaseDatos::ejecutar('SELECT id,rol,clave_hash FROM usuarios WHERE id = ?', [$id])->fetch();
+        $resultado = Autenticacion::abrirSesion($usuario);
+        if (self::solicitaJson()) self::responderJson(['ok' => true] + $resultado, 201);
+        header('Location: ' . $resultado['destino'], true, 303);
         exit;
+    }
+
+    private static function solicitaJson(): bool {
+        return $_SERVER['REQUEST_METHOD'] === 'POST' && ($_SERVER['HTTP_ACCEPT'] ?? '') === 'application/json';
+    }
+
+    private static function responderJson(array $datos, int $estado): void {
+        http_response_code($estado);
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_seguro($datos);
+        exit;
+    }
+
+    private static function falloIngreso(ErrorAplicacion $error, bool $disponible): array {
+        if (self::solicitaJson()) self::responderJson(['ok' => false, 'mensaje' => $error->getMessage()], $error->estado);
+        http_response_code($error->estado);
+        return [$disponible, $error->getMessage()];
     }
 
     public static function mostrarDiagnostico(): void {
@@ -71,9 +114,11 @@ final class Instalacion {
             if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 self::validarClave($clave);
                 $mensaje = require RAIZ . '/herramientas/verificar_bd.php';
+                if (self::solicitaJson()) self::responderJson(['ok' => true, 'mensaje' => $mensaje], 200);
                 $correcto = true;
             }
         } catch (ErrorAplicacion $error) {
+            if (self::solicitaJson()) self::responderJson(['ok' => false, 'mensaje' => $error->getMessage()], $error->estado);
             http_response_code($error->estado);
             $mensaje = $error->getMessage();
         }
@@ -83,6 +128,7 @@ final class Instalacion {
     }
 
     private static function validarClave(string $clave): void {
+        if (!$_POST) throw new ErrorAplicacion('El servidor recibió el formulario vacío. Revisa la configuración de envío en el alojamiento.', 400);
         $csrf = $_POST['csrf'] ?? '';
         Seguridad::csrf(is_string($csrf) ? $csrf : '');
         $enviada = $_POST['clave_instalacion'] ?? '';

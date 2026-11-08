@@ -20,13 +20,9 @@ powershell -ExecutionPolicy Bypass -File .\iniciar.ps1
 
 El iniciador local usa el PHP de este equipo. Puedes elegir otro ejecutable mediante `EVALUAEIC_PHP`. La base local utiliza SQLite.
 
-En una base nueva, crea el primer administrador desde una consola en la raíz del proyecto.
+En una base nueva, pulsa **Primer acceso de administrador** en el login. Escribe tu nombre, usuario y contraseña, y pulsa **Crear administrador**. Al guardar la cuenta, entras directamente al panel y el primer acceso queda cerrado.
 
-```powershell
-C:\xampp\php\php.exe herramientas/crear_administrador.php
-```
-
-El comando muestra el usuario `admin-inicial` y una contraseña aleatoria. Entra con esa cuenta y crea las cuentas definitivas desde **Administración → Usuarios**. Para retirar el acceso inicial, entra con el administrador definitivo y desactiva `admin-inicial`. Los nombres de usuario son únicos y tienen de 3 a 40 caracteres.
+El código de `almacenamiento/clave_instalacion.txt` se usa en **Verificar base de datos**. Los nombres de usuario son únicos y tienen de 3 a 40 caracteres.
 
 Al iniciar una instalación anterior, la actualización convierte el correo en un nombre de usuario tomando su parte anterior a `@`. Si hay coincidencias, añade un sufijo como `.1`. Conserva los identificadores, contraseñas, materiales y evaluaciones. En SQLite crea un respaldo completo previo dentro de `almacenamiento/respaldos`.
 
@@ -98,7 +94,7 @@ Para MySQL 8 o MariaDB compatible:
 
 1. Selecciona la base asignada e importa `database/instalar_evaluaeic.sql`.
 2. Cambia `BD_MOTOR` a `mysql` en `configuracion/servidor.php` y completa host, puerto, nombre, usuario y clave.
-3. En una base nueva, ejecuta `php herramientas/crear_administrador.php`.
+3. En una base nueva, abre el sistema y pulsa **Primer acceso de administrador**.
 
 Cambiar de motor inicia una base separada. Si necesitas llevar los registros locales, planifica la migración de SQLite y sus PDF antes de la puesta en marcha.
 
@@ -137,7 +133,6 @@ Con Composer instalado y las extensiones PHP PDO, pdo_sqlite (o pdo_mysql), mbst
 ```powershell
 composer install
 C:\xampp\php\php.exe herramientas/preparar.php
-C:\xampp\php\php.exe herramientas/crear_administrador.php
 .\iniciar.ps1
 ```
 
@@ -149,7 +144,7 @@ C:\xampp\php\php.exe herramientas/crear_administrador.php
 node pruebas/recorrido.mjs
 ```
 
-Requiere Node.js 20 o superior y PHP. Inicia su propio servidor en el puerto 8091 y usa una base SQLite aislada dentro de una carpeta temporal de `almacenamiento`. Elimina únicamente esa carpeta al terminar. Comprueba 56 condiciones del recorrido real por HTTP, incluyendo el acceso por usuario y contraseña, unicidad de usuarios, roles, PDF, salas, respuesta única, ocultación de soluciones, tiempos, puntaje y conservación del historial.
+Requiere Node.js 20 o superior y PHP. Inicia su propio servidor en el puerto 8091 y usa una base SQLite aislada dentro de una carpeta temporal de `almacenamiento`. Elimina únicamente esa carpeta al terminar. Comprueba el primer acceso, el cierre permanente del alta inicial, los roles, PDF, salas, respuestas, tiempos, puntos, equipos y conservación del historial.
 
 Las pruebas específicas de OpenRouter funcionan con un transporte simulado.
 
