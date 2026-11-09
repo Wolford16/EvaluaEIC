@@ -15,6 +15,8 @@ En una instalación nueva publicada en Internet, cualquier visitante puede pulsa
 
 EvaluaEIC usa PHP 8.0 o superior con PDO, pdo_mysql, cURL, mbstring, fileinfo, iconv y zlib. El PHP de Apache necesita escritura en `almacenamiento`, acceso HTTPS a OpenRouter y límites de carga de 12 MB por archivo y 16 MB por solicitud. Para generación de preguntas, configura al menos 210 segundos de tiempo de ejecución.
 
+El informe PDF de resultados usa Times New Roman cuando está disponible en el servidor. Si el servidor tiene una copia con licencia en otro directorio, indica esa carpeta en `PDF_FUENTES_TIMES` en la configuración privada y conserva los nombres `times.ttf` y `timesbd.ttf`. Para servidores sin esta fuente, la carpeta `aplicacion/Recursos/fuentes` incluye Liberation Serif en 12 puntos.
+
 El SQL crea las tablas para una instalación nueva. Para llevar registros de SQLite, prepara por separado la migración de usuarios, materiales y evaluaciones junto con los PDF correspondientes.
 
 ## Agregar la instalación web a una copia existente

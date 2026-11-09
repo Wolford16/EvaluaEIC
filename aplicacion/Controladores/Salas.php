@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace EvaluaEIC\Controladores;
-use EvaluaEIC\Servicios\{BaseDatos, Seguridad, ErrorAplicacion, Evaluacion};
+use EvaluaEIC\Servicios\{BaseDatos, Seguridad, ErrorAplicacion, Evaluacion, InformeResultados, ResultadosExcel};
 final class Salas {
     public static function crear(array $datos,array $usuario): array {
         $url = url_publica();
@@ -72,5 +72,19 @@ final class Salas {
         $codigo = mb_strtoupper(Seguridad::texto($consulta['codigo'] ?? '', 4, 12, 'Código'));
         $id = isset($consulta['participante']) ? Seguridad::entero($consulta['participante'], 1, PHP_INT_MAX, 'participante') : null;
         return Evaluacion::historialRespuestas($codigo, $usuario, $token, $id);
+    }
+
+    public static function descargarResultados(string $codigo, array $usuario, string $formato, ?int $participante): void {
+        $datos = Evaluacion::resultadosInforme($codigo, $usuario, $participante);
+        if ($formato === 'xlsx') {
+            $contenido = ResultadosExcel::generar($datos);
+            header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        } else {
+            $contenido = InformeResultados::generar($datos);
+            header('Content-Type: application/pdf');
+        }
+        $nombre = $participante === null ? 'resultados-' . $codigo : 'respuestas-' . $codigo . '-' . $participante;
+        header('Content-Disposition: attachment; filename="' . $nombre . '.' . $formato . '"');
+        echo $contenido;
     }
 }

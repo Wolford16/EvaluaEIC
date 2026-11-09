@@ -8,10 +8,18 @@
   const fecha=valor=>new Date(valor.replace(' ','T')).toLocaleDateString('es-HN',{day:'2-digit',month:'short',year:'numeric'});
   const cantidad=(numero,singular,plural)=>`${numero} ${Number(numero)===1?singular:plural}`;
   const accion=(nombre,id,texto,clase='suave')=>`<button class="boton ${clase} pequeno" data-accion="${nombre}" data-id="${e(id)}">${texto}</button>`;
+  function enlacesInforme(codigo, participante=null) {
+    const alcance=participante===null?'':`/${participante}`;
+    const base=ruta(`/resultados/${encodeURIComponent(codigo)}${alcance}`);
+    return [['pdf','PDF'],['xlsx','Excel']].map(([extension,formato])=>
+      `<a class="boton suave pequeno" href="${e(`${base}.${extension}`)}" download>${i('documento')} Descargar ${formato}</a>`
+    ).join('');
+  }
   function rankingSala(s) {
     const verRespuestas = s.fase === 'finalizada' ? p => `<button type="button" class="boton suave pequeno" data-accion="ver-respuestas" data-id="${p.id}" data-codigo="${e(s.codigo)}" aria-label="Ver respuestas de ${e(p.nombre)}">Ver respuestas</button>` : null;
     const tituloIndividual=s.cantidad_equipos?'<h3 class="titulo-ranking-individual">Ranking individual</h3>':'';
-    return resultadosEquipos(s)+tituloIndividual+ranking(s.ranking, s.total, null, verRespuestas);
+    const informe=verRespuestas?`<div class="grupo-botones margen-superior" role="group" aria-label="Informe general">${enlacesInforme(s.codigo)}</div>`:'';
+    return informe+resultadosEquipos(s)+tituloIndividual+ranking(s.ranking, s.total, null, verRespuestas);
   }
   document.getElementById('cerrar-sesion').addEventListener('click',async()=>{try { const r=await api('salir',{}); location.assign(r.destino); } catch(error){aviso(error.message,true);} });
 
@@ -43,7 +51,7 @@
   }
   async function historial(destino) {
     const {salas}=await api('salas');
-    destino.innerHTML=salas.length ? `<div class="tabla-contenedor"><table><thead><tr><th>Material</th><th>Sala</th><th>Fecha</th><th>Participantes</th><th>Estado</th><th></th></tr></thead><tbody>${salas.map(s=>`<tr><td><strong>${e(s.titulo)}</strong><small class="bloque texto-suave">${e(s.docente)}</small></td><td><code>${e(s.codigo)}</code><small class="bloque texto-suave">${s.cantidad_equipos?`${s.cantidad_equipos} equipos`:'Individual'}</small></td><td>${fecha(s.creado_en)}</td><td>${s.participantes}</td><td><span class="insignia">${s.fase==='espera'?'En espera':s.fase==='finalizada'?'Finalizada':'En curso'}</span></td><td>${accion('ver-sala',s.codigo,'Ver sala y ranking')}</td></tr>`).join('')}</tbody></table></div>` : vacio('Aún no hay evaluaciones','Las salas que crees aparecerán aquí.','trofeo');
+    destino.innerHTML=salas.length ? `<div class="tabla-contenedor"><table><thead><tr><th>Material</th><th>Sala</th><th>Fecha</th><th>Participantes</th><th>Estado</th><th></th></tr></thead><tbody>${salas.map(s=>`<tr><td><strong>${e(s.titulo)}</strong><small class="bloque texto-suave">${e(s.docente)}</small></td><td><code>${e(s.codigo)}</code><small class="bloque texto-suave">${s.cantidad_equipos?`${s.cantidad_equipos} equipos`:'Individual'}</small></td><td>${fecha(s.creado_en)}</td><td>${s.participantes}</td><td><span class="insignia">${s.fase==='espera'?'En espera':s.fase==='finalizada'?'Finalizada':'En curso'}</span></td><td><div class="grupo-botones">${accion('ver-sala',s.codigo,'Ver sala y ranking')}${s.fase==='finalizada'?enlacesInforme(s.codigo):''}</div></td></tr>`).join('')}</tbody></table></div>` : vacio('Aún no hay evaluaciones','Las salas que crees aparecerán aquí.','trofeo');
   }
   function mostrarCuenta(destino) {
     destino.innerHTML=`<div class="titulo-seccion"><h2>Mi cuenta</h2></div>
@@ -248,12 +256,14 @@
   }
   async function abrirRespuestas(boton) {
     const codigo = boton.dataset.codigo;
+    const participante = Number(boton.dataset.id);
     const dialogo = boton.closest('dialog');
     boton.disabled = true;
     try {
-      const r = await api(`respuestas?codigo=${encodeURIComponent(codigo)}&participante=${Number(boton.dataset.id)}`);
+      const r = await api(`respuestas?codigo=${encodeURIComponent(codigo)}&participante=${participante}`);
       if (!boton.isConnected || (dialogo && !dialogo.open)) return;
       abrirDialogo(`${cabeceraDialogo('HISTORIAL DE RESPUESTAS', r.nombre)}
+        <div class="grupo-botones margen-inferior" role="group" aria-label="Ficha individual">${enlacesInforme(codigo, participante)}</div>
         ${detalleRespuestas(r.preguntas)}
         <div class="acciones-dialogo">${accion('ver-sala', codigo, 'Volver a resultados')}</div>`, 'dialogo-sala');
     } finally {

@@ -77,6 +77,14 @@ try {
     }
     $usuario=Seguridad::usuario(false);
     if ($ruta==='/' || $ruta==='/index.php') { header('Location: '.ruta_app($usuario ? ($usuario['rol']==='admin'?'/admin':'/docente') : '/ingreso')); exit; }
+    if (preg_match('#^/resultados/([A-Za-z0-9-]{4,12})(?:/([1-9][0-9]*))?\.(pdf|xlsx)$#D', $ruta, $coincidencias)) {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') throw new ErrorAplicacion('Método no permitido.', 405);
+        $responsable = $usuario ?? Seguridad::usuario();
+        $participante = $coincidencias[2] === '' ? null : Seguridad::entero($coincidencias[2], 1, PHP_INT_MAX, 'Participante');
+        session_write_close();
+        Salas::descargarResultados(strtoupper($coincidencias[1]), $responsable, $coincidencias[3], $participante);
+        exit;
+    }
     if (preg_match('#^/archivo/(\d+)$#',$ruta,$coincidencias)) {
         $documento=Seguridad::documento((int)$coincidencias[1],Seguridad::usuario());
         $archivo=RAIZ.'/almacenamiento/documentos/'.$documento['ruta_archivo'];

@@ -2,7 +2,16 @@
   "name": "evaluaeic/plataforma",
   "description": "Evaluaciones interactivas en PHP",
   "type": "project",
-  "require": {"php": ">=8.0", "ext-pdo": "*", "ext-mbstring": "*", "ext-fileinfo": "*", "ext-curl": "*", "smalot/pdfparser": "^2.12"},
+  "require": {
+    "php": ">=8.0",
+    "ext-curl": "*",
+    "ext-fileinfo": "*",
+    "ext-mbstring": "*",
+    "ext-pdo": "*",
+    "setasign/tfpdf": "1.34",
+    "shuchkin/simplexlsxgen": "1.5.17",
+    "smalot/pdfparser": "^2.12"
+  },
   "config": {"vendor-dir": "terceros", "sort-packages": true},
   "autoload": {"psr-4": {"EvaluaEIC\\": "aplicacion/"}}
 }

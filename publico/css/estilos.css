@@ -20,6 +20,18 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--fondo); font-size: 14px; line-height: 1.5; }
+.vista-administracion, .vista-docente, .modo-examen { position: relative; isolation: isolate; }
+.vista-administracion::before, .vista-docente::before, .modo-examen::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: url("../imagenes/logo-eic.png") center 55% / min(70vw, 520px) auto no-repeat;
+  opacity: .10;
+  pointer-events: none;
+}
+.vista-administracion .contenido-principal > .panel,
+.vista-docente .contenido-principal > .panel { background-color: #ffffffb8; }
 button, input, textarea, select { font: inherit; }
 button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
 button, a { touch-action: manipulation; }
@@ -460,6 +472,23 @@ dialog::backdrop { background: #021a3ab8; backdrop-filter: blur(3px); }
 .puntaje-examen .icono { width: 17px; height: 17px; }
 .barra-tiempo { height: 5px; background: #dce8f1; border-radius: 10px; margin-top: 20px; overflow: hidden; }
 .barra-tiempo > div { height: 100%; background: var(--eic-celeste); border-radius: 10px; transition: width .1s linear; }
+.ranking-parcial {
+  margin-top: 14px;
+  padding: 9px 12px;
+  border: 1px solid #cde0ef;
+  border-radius: 12px;
+  background: #f7fbffed;
+  animation: aparecer-ranking .24s ease-out;
+}
+.ranking-parcial h2 { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 0 0 6px; }
+.ranking-parcial h2 .icono { width: 15px; height: 15px; }
+.ranking-parcial ul { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr)); gap: 6px; list-style: none; padding: 0; margin: 0; }
+.ranking-parcial li { display: flex; align-items: center; min-width: 0; gap: 6px; padding: 5px 7px; border-radius: 7px; background: #edf3f9; color: var(--eic-marino); font-size: 11px; }
+.ranking-parcial .posicion-propia { background: #dcefff; box-shadow: inset 0 0 0 1px #9fcced; }
+.ranking-parcial .avatar { width: 20px; height: 20px; flex: 0 0 20px; border-radius: 5px; font-size: 11px; }
+.ranking-parcial .nombre-parcial { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ranking-parcial strong { white-space: nowrap; }
+@keyframes aparecer-ranking { from { opacity: 0; transform: translateY(4px); } }
 .enunciado-examen { text-align: center; padding: 36px 24px 30px; }
 .enunciado-examen > .sobrelinea { font-size: 11px; color: #627f98; max-width: 700px; margin: 0 auto 16px; letter-spacing: .03em; }
 .enunciado-examen h1 { font-size: 27px; line-height: 1.5; max-width: 790px; margin: auto; }

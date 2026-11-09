@@ -58,6 +58,23 @@
       finally{boton.disabled=false;}
     };
   }
+  function rankingParcial(s) {
+    const lideres=s.ranking.slice(0,3);
+    const miPosicion=s.ranking.findIndex(p=>p.id===s.participante.id);
+    if(miPosicion>=3)lideres.push(s.participante);
+    return `<aside class="ranking-parcial" aria-label="Ranking parcial">
+      <h2>${i('trofeo')} Ranking parcial</h2>
+      <ul>${lideres.map((p,indice)=>{
+        const propio=p.id===s.participante.id;
+        const posicion=propio?miPosicion+1:indice+1;
+        return `<li class="${propio?'posicion-propia':''}">
+          <b class="posicion-parcial">${posicion}.º</b>${avatar(p.avatar)}
+          <span class="nombre-parcial" title="${e(p.nombre)}">${propio?'Tú':e(p.nombre)}</span>
+          <strong>${p.puntos.toLocaleString('es')} <span class="solo-lector">puntos</span></strong>
+        </li>`;
+      }).join('')}</ul>
+    </aside>`;
+  }
   function mostrar(s) {
     const anterior=estado;
     estado=s;
@@ -95,6 +112,9 @@
         const rachaVisible=`<div class="racha-examen ${hito?'racha-hito':''}"><span aria-hidden="true">🔥</span><strong>${racha} ${racha===1?'acierto seguido':'aciertos seguidos'}</strong>${hito||reinicio?`<span>${hito||'Racha reiniciada'}</span>`:''}</div>`;
         raiz.innerHTML=`<section class="examen"><div class="barra-examen"><span class="etiqueta-pregunta">PREGUNTA <b>${s.indice+1}</b> / ${s.total}</span><span class="reloj-examen ${revelacion?'revelando':''}">${i('reloj')} <b id="tiempo-pregunta"></b></span><span class="puntaje-examen">${i('trofeo')} <b id="puntos-participante">${s.participante.puntos}</b> puntos</span></div><div class="barra-tiempo"><div id="progreso-pregunta"></div></div><div class="enunciado-examen"><span class="sobrelinea">${e(s.titulo)}</span><h1>${e(s.pregunta.enunciado)}</h1></div><div class="opciones-examen">${s.pregunta.opciones.map((opcion,n)=>`<button class="respuesta-examen ${colores[n]} ${revelacion?(Number(s.pregunta.correcta)===n?'es-correcta':'es-incorrecta'):''}" data-respuesta="${n}" ${revelacion?'disabled':''}><span class="letra-opcion">${'ABCD'[n]}</span><span>${e(opcion)}</span><span class="marca-respuesta">${revelacion && Number(s.pregunta.correcta)===n?i('ok'):''}</span></button>`).join('')}</div><div class="estado-respuesta" id="estado-respuesta">Selecciona una respuesta.</div>${revelacion?`<div class="retroalimentacion ${acertada?'acertada':'fallada'}">${acertada?`<div class="confeti" aria-hidden="true">${Array.from({length:16},(_,n)=>`<span style="--posicion:${n*6.6}%;--demora:${-(n%5)*.16}s;--giro:${n*37}deg"></span>`).join('')}</div>`:''}<strong>${acertada?`${i('ok')} ¡Respuesta correcta! +${s.respuesta.puntos} puntos`:s.respuesta?.opcion===null?'Se agotó el tiempo. Esta es la respuesta correcta.':'Respuesta incorrecta. La opción correcta está marcada.'}</strong><p>${e(s.pregunta.explicacion)}</p><span>${s.indice+1===s.total?'Los resultados aparecen':'La siguiente pregunta comienza'} en <b id="tiempo-revelacion">4</b>s</span></div>`:''}<p class="pie-examen">${avatar(s.participante.avatar)} ${e(s.participante.nombre)} <span>·</span> ${e(codigo)}</p></section>`;
         raiz.querySelector('.enunciado-examen').insertAdjacentHTML('afterend',rachaVisible);
+        if(revelacion && s.indice+1<s.total){
+          raiz.querySelector('.barra-tiempo').insertAdjacentHTML('afterend',rankingParcial(s));
+        }
         if(s.participante.equipo){
           raiz.querySelector('.pie-examen').insertAdjacentHTML('beforeend',etiquetaEquipo(s.participante.equipo));
           if(revelacion){

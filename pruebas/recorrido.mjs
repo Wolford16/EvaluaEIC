@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
-import {existsSync,mkdirSync,rmSync} from 'node:fs';
+import {existsSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {setTimeout as esperar} from 'node:timers/promises';
@@ -32,6 +32,10 @@ class Cliente {
     });
     this.actualizar(r);
     return {...await r.json(),estadoHttp:r.status};
+  }
+  async descargar(ruta){
+    const r=await fetch(`http://127.0.0.1:8091${ruta}`,{headers:{Cookie:this.cookie},redirect:'manual'});
+    return {r,contenido:Buffer.from(await r.arrayBuffer())};
   }
   async ingresar(usuario,clave){await this.pagina('/ingreso');const r=await this.api('ingresar',{usuario,clave});comprobar(r.ok,'Ingreso válido');await this.pagina(r.destino);}
 }
@@ -167,6 +171,12 @@ try {
   const idAlumno=pregunta.participante.id;
   comprobar(pregunta.participante.avatar===23 && estadoDocente.pregunta.enunciado===pregunta.pregunta.enunciado && JSON.stringify(estadoDocente.pregunta.opciones)===JSON.stringify(pregunta.pregunta.opciones),'La sala mantiene el avatar y el mismo orden para todos');
   comprobar((await alumno.api(`respuestas?codigo=${codigo}`,null,token)).estadoHttp===409 && (await docente.api(`respuestas?codigo=${codigo}&participante=${idAlumno}`)).estadoHttp===409,'El historial permanece cerrado durante la evaluación');
+  const rutaInforme=`/resultados/${codigo}.pdf`;
+  const rutaExcel=`/resultados/${codigo}.xlsx`;
+  const rutaFicha=`/resultados/${codigo}/${idAlumno}.pdf`;
+  comprobar((await docente.descargar(rutaInforme)).r.status===409,'El informe se habilita al finalizar la evaluación');
+  comprobar((await docente.descargar(rutaFicha)).r.status===409 && (await docente.descargar(rutaExcel)).r.status===409,
+    'Las nuevas descargas esperan el cierre de la sala');
   comprobar((await alumno.api('responder',{codigo,indice:1,opcion:1},token)).estadoHttp===409,'Rechaza pregunta futura');
   comprobar((await alumno.api('responder',{codigo,indice:0,opcion:copia[0].opciones.length},token)).estadoHttp===422,'Rechaza una opción fuera del rango');
   comprobar((await alumno.api('responder',{codigo,indice:0,opcion:copia[0].correcta},token)).ok,'Respuesta registrada');
@@ -192,6 +202,53 @@ try {
   comprobar((await alumno.api(peticionHistorial)).estadoHttp===401 && (await otro.api(peticionHistorial)).estadoHttp===403 && (await alumno.api(peticionHistorial,null,tercero.token)).estadoHttp===403,'El historial excluye a personas y participantes sin permiso');
   const fallos=await alumno.api(`respuestas?codigo=${codigo}`,null,tercero.token);
   comprobar(fallos.preguntas[0].elegida===errorElegido && fallos.preguntas[0].correcta!==errorElegido && fallos.preguntas[1].elegida===null,'El historial distingue respuestas incorrectas de preguntas sin responder');
+  comprobar((await alumno.descargar(rutaInforme)).r.status===401 && (await otro.descargar(rutaInforme)).r.status===403,'El informe protege los resultados del grupo');
+  const informe=await docente.descargar(rutaInforme);
+  comprobar(informe.r.ok && informe.r.headers.get('content-type')==='application/pdf' &&
+    informe.r.headers.get('content-disposition')===`attachment; filename="resultados-${codigo}.pdf"` &&
+    informe.contenido.subarray(0,5).toString()==='%PDF-','El docente descarga un PDF válido de la sala');
+  const archivoInforme=path.join(directorio,'informe.pdf');
+  writeFileSync(archivoInforme,informe.contenido);
+  const rutaCodificada=Buffer.from(archivoInforme).toString('base64');
+  const textoInforme=ejecutarPhp(`echo (new Smalot\\PdfParser\\Parser())->parseFile(base64_decode('${rutaCodificada}'))->getText();`);
+  comprobar(textoInforme.includes('ESCUELA DE INVESTIGACIÓN CRIMINAL') && textoInforme.includes('Material de prueba') &&
+    textoInforme.includes('Firma del docente'),'El PDF incluye el encabezado institucional, el título y la firma');
+  const datosInforme=JSON.parse(ejecutarPhp(`
+    $datos = EvaluaEIC\\Servicios\\Evaluacion::resultadosInforme('${codigo}', ['rol'=>'admin']);
+    echo json_encode($datos['filas']);
+  `));
+  const falloInforme=datosInforme.find(p=>p.nombre==='Respuesta incorrecta');
+  comprobar(falloInforme.incorrectas===1 && falloInforme.sin_responder===1 && datosInforme[0].puntos===final.ranking[0].puntos,
+    'El informe distingue errores de ausencias y conserva el puntaje de la sala');
+  const idFallos=falloInforme.id;
+  const fichaFallos=`/resultados/${codigo}/${idFallos}`;
+  comprobar((await alumno.descargar(`${fichaFallos}.pdf`)).r.status===401 &&
+    (await otro.descargar(`${fichaFallos}.xlsx`)).r.status===403 && (await otro.descargar(rutaExcel)).r.status===403,
+    'Los informes nuevos protegen las respuestas individuales y del grupo');
+  comprobar((await docente.descargar(`/resultados/${codigo}/999999.pdf`)).r.status===404,
+    'La ficha solo admite participantes de la sala');
+  const ficha=await docente.descargar(`${fichaFallos}.pdf`);
+  comprobar(ficha.r.ok && ficha.r.headers.get('content-disposition')===`attachment; filename="respuestas-${codigo}-${idFallos}.pdf"`,
+    'El docente descarga la ficha PDF del participante elegido');
+  writeFileSync(archivoInforme,ficha.contenido);
+  const textoFicha=ejecutarPhp(`echo (new Smalot\\PdfParser\\Parser())->parseFile(base64_decode('${rutaCodificada}'))->getText();`);
+  comprobar(['Material de prueba','ESCUELA DE INVESTIGACIÓN CRIMINAL','Participante: Respuesta incorrecta','Incorrecta','Sin responder']
+    .every(texto=>textoFicha.includes(texto)), 'La ficha contiene el encabezado y distingue los errores de las ausencias');
+  const datosFicha=JSON.parse(ejecutarPhp(`
+    echo json_encode(EvaluaEIC\\Servicios\\Evaluacion::resultadosInforme('${codigo}', ['rol'=>'admin'], ${idFallos}));
+  `));
+  comprobar(datosFicha.filas[0].respuesta.endsWith(copia[0].opciones[errorElegido]) &&
+    datosFicha.filas[0].correcta.endsWith(copia[0].opciones[copia[0].correcta]) &&
+    datosFicha.filas[1].resultado==='Sin responder', 'La ficha utiliza el orden de opciones guardado en la sala');
+  for (const [cliente, ruta, nombre] of [
+    [docente,rutaExcel,`resultados-${codigo}.xlsx`],
+    [admin,`${fichaFallos}.xlsx`,`respuestas-${codigo}-${idFallos}.xlsx`],
+  ]) {
+    const excel=await cliente.descargar(ruta);
+    comprobar(excel.r.ok && excel.r.headers.get('content-type')==='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' &&
+      excel.r.headers.get('content-disposition')===`attachment; filename="${nombre}"` &&
+      excel.contenido.subarray(0,4).equals(Buffer.from([0x50,0x4b,3,4])), 'Descarga el archivo XLSX del alcance seleccionado');
+  }
   comprobar((await alumno.api('unirse',{codigo,nombre:'Tardío',avatar:0})).estadoHttp===409,'No permite registro al terminar');
   const detalle=await docente.api(`material?id=${id}`);await docente.api('eliminar-pregunta',{id:detalle.preguntas[0].id});comprobar((await alumno.api(`estado?codigo=${codigo}`,null,token)).total===2,'Las salas conservan preguntas históricas');
   ejecutarPhp(`
@@ -331,6 +388,8 @@ try {
 
   await admin.api('eliminar-material',{id});comprobar((await alumno.api(`estado?codigo=${codigo}`,null,token)).ranking[0].porcentaje===100,'Eliminar material conserva historial');
   comprobar((await admin.api(peticionHistorial)).preguntas.length===2,'El historial de respuestas sobrevive a la eliminación del material');
+  comprobar((await admin.descargar(rutaInforme)).r.status===200,'El administrador descarga informes aunque se haya eliminado el documento');
+  comprobar((await admin.descargar(`${fichaFallos}.xlsx`)).r.status===200,'La ficha individual conserva las respuestas al eliminar el documento');
   const idOtro=(await admin.api('usuarios')).usuarios.find(u=>u.usuario==='otra.docente').id;await admin.api('estado-usuario',{id:idOtro});comprobar((await otro.api('materiales')).estadoHttp===401,'Desactivar revoca el acceso existente');
   const puntos=ejecutarPhp('echo EvaluaEIC\\Servicios\\Evaluacion::puntos(true,5,20);');comprobar(puntos==='875','Fórmula: 5 de 20 segundos = 875 puntos');
   console.log(`Correcto: ${comprobaciones} comprobaciones del recorrido HTTP completo.`);

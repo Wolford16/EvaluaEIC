@@ -40,17 +40,65 @@ final class Evaluacion {
     public static function autorizar(array $sala,?array $usuario): bool {
         return $usuario && ($usuario['rol']==='admin' || (int)$usuario['id']===(int)$sala['creado_por_id']);
     }
+    public static function resultadosInforme(string $codigo, array $usuario, ?int $id = null): array {
+        return BaseDatos::transaccion(function () use ($codigo, $usuario, $id): array {
+            $sala = BaseDatos::bloquearSala($codigo);
+            if (!$sala) throw new ErrorAplicacion('No encontramos esa sala.', 404);
+            if (!self::autorizar($sala, $usuario)) throw new ErrorAplicacion('No tienes acceso a los resultados de esta sala.', 403);
+
+            $preguntas = self::contenido($sala)['preguntas'];
+            $total = count($preguntas);
+            $ahora = microtime(true);
+            if (self::fase($sala, $total, $ahora)['fase'] !== 'finalizada') {
+                throw new ErrorAplicacion('El informe estará disponible cuando termine la evaluación.', 409);
+            }
+            $datos = ['titulo' => $sala['titulo'], 'docente' => $sala['docente'], 'codigo' => $sala['codigo']];
+            if ($id !== null) {
+                $participante = self::buscarParticipante($sala, $id);
+                $filas = [];
+                foreach (self::preguntasRespondidas($preguntas, $id) as $indice => $pregunta) {
+                    $elegida = $pregunta['elegida'];
+                    $correcta = (int) $pregunta['correcta'];
+                    $filas[] = [
+                        'numero' => $indice + 1,
+                        'pregunta' => $pregunta['enunciado'],
+                        'respuesta' => $elegida === null ? '-' : self::opcionInforme($pregunta, $elegida),
+                        'correcta' => self::opcionInforme($pregunta, $correcta),
+                        'resultado' => match ($elegida) {
+                            null => 'Sin responder',
+                            $correcta => 'Correcta',
+                            default => 'Incorrecta',
+                        },
+                    ];
+                }
+                return $datos + ['participante' => $participante['nombre'], 'filas' => $filas];
+            }
+            $incorrectas = BaseDatos::ejecutar(
+                'SELECT r.participante_id, COUNT(*) FROM respuestas_participantes r
+                 JOIN participantes p ON p.id = r.participante_id
+                 WHERE p.sala_id = ? AND r.indice < ? AND r.opcion IS NOT NULL AND r.correcta = 0
+                 GROUP BY r.participante_id',
+                [$sala['id'], $total]
+            )->fetchAll(\PDO::FETCH_KEY_PAIR);
+
+            $filas = self::ranking((int) $sala['id'], $total, $total, $ahora, null);
+            foreach ($filas as &$fila) {
+                $fila['incorrectas'] = (int) ($incorrectas[$fila['id']] ?? 0);
+                $fila['sin_responder'] = $total - $fila['aciertos'] - $fila['incorrectas'];
+            }
+            return $datos + ['filas' => $filas];
+        });
+    }
+    private static function opcionInforme(array $pregunta, int $indice): string {
+        return chr(65 + $indice) . '. ' . $pregunta['opciones'][$indice];
+    }
     public static function historialRespuestas(string $codigo, ?array $usuario, string $token, ?int $id): array {
         return BaseDatos::transaccion(function () use ($codigo, $usuario, $token, $id): array {
             $sala = BaseDatos::bloquearSala($codigo);
             if (!$sala) throw new ErrorAplicacion('No encontramos esa sala.', 404);
 
             if ($id !== null && self::autorizar($sala, $usuario)) {
-                $participante = BaseDatos::ejecutar(
-                    'SELECT id, nombre FROM participantes WHERE sala_id = ? AND id = ?',
-                    [$sala['id'], $id]
-                )->fetch();
-                if (!$participante) throw new ErrorAplicacion('No encontramos a ese participante en la sala.', 404);
+                $participante = self::buscarParticipante($sala, $id);
             } else {
                 $participante = self::participante($sala, $token);
                 if (!$participante || ($id !== null && $id !== (int) $participante['id'])) {
@@ -62,18 +110,29 @@ final class Evaluacion {
                 throw new ErrorAplicacion('El historial estará disponible cuando termine la evaluación.', 409);
             }
 
-            $filas = BaseDatos::ejecutar(
-                'SELECT indice, opcion, puntos FROM respuestas_participantes WHERE participante_id = ?',
-                [$participante['id']]
-            )->fetchAll();
-            $respuestas = array_column($filas, null, 'indice');
-            foreach ($preguntas as $indice => &$pregunta) {
-                $opcion = $respuestas[$indice]['opcion'] ?? null;
-                $pregunta['elegida'] = $opcion === null ? null : (int) $opcion;
-                $pregunta['puntos'] = (int) ($respuestas[$indice]['puntos'] ?? 0);
-            }
-            return ['nombre' => $participante['nombre'], 'preguntas' => $preguntas];
+            return ['nombre' => $participante['nombre'], 'preguntas' => self::preguntasRespondidas($preguntas, (int) $participante['id'])];
         });
+    }
+    private static function buscarParticipante(array $sala, int $id): array {
+        $participante = BaseDatos::ejecutar(
+            'SELECT id, nombre FROM participantes WHERE sala_id = ? AND id = ?',
+            [$sala['id'], $id]
+        )->fetch();
+        if (!$participante) throw new ErrorAplicacion('No encontramos a ese participante en la sala.', 404);
+        return $participante;
+    }
+    private static function preguntasRespondidas(array $preguntas, int $id): array {
+        $filas = BaseDatos::ejecutar(
+            'SELECT indice, opcion, puntos FROM respuestas_participantes WHERE participante_id = ?',
+            [$id]
+        )->fetchAll();
+        $respuestas = array_column($filas, null, 'indice');
+        foreach ($preguntas as $indice => &$pregunta) {
+            $opcion = $respuestas[$indice]['opcion'] ?? null;
+            $pregunta['elegida'] = $opcion === null ? null : (int) $opcion;
+            $pregunta['puntos'] = (int) ($respuestas[$indice]['puntos'] ?? 0);
+        }
+        return $preguntas;
     }
     private static function ranking(int $sala, int $total, int $cerradas, float $ahora, ?int $revelada): array {
         $filas=BaseDatos::ejecutar(
