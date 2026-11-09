@@ -61,10 +61,9 @@ final class Instalacion {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') return [true, ''];
 
         try {
-            $csrf = $_POST['csrf'] ?? '';
-            Seguridad::csrf(is_string($csrf) ? $csrf : '');
             $accion = $_POST['accion'] ?? '';
             if ($accion === 'entrar') {
+                self::validarClave(self::clave());
                 session_regenerate_id(true);
                 $_SESSION['primer_acceso'] = true;
                 $_SESSION['csrf'] = bin2hex(random_bytes(32));
@@ -72,6 +71,8 @@ final class Instalacion {
                 header('Location: ' . ruta_app('/crear_administrador.php'), true, 303);
                 exit;
             }
+            $csrf = $_POST['csrf'] ?? '';
+            Seguridad::csrf(is_string($csrf) ? $csrf : '');
             if ($accion !== 'guardar' || empty($_SESSION['primer_acceso'])) {
                 throw new ErrorAplicacion('Pulsa Primer acceso para crear el administrador.', 403);
             }

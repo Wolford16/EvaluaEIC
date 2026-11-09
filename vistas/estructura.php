@@ -10,12 +10,13 @@
     <link rel="stylesheet" href="<?= escapar(ruta_app('/css/estilos.css')) ?>">
     <script id="datos-iniciales" type="application/json"><?= json_seguro($datosIniciales) ?></script>
     <script src="<?= escapar(ruta_app('/js/terceros/codigo-qr.js')) ?>" defer></script>
-    <script src="<?= escapar(ruta_app('/js/comun.js')) ?>" defer></script>
+    <script src="<?= escapar(ruta_app('/js/comun.js') . '?v=' . filemtime(RAIZ . '/publico/js/comun.js')) ?>" defer></script>
     <?php if ($vista !== 'ingreso'): ?>
         <script src="<?= escapar(ruta_app('/js/experiencia.js')) ?>" defer></script>
     <?php endif; ?>
     <?php $script = $vista === 'ingreso' ? 'ingreso' : ($vista === 'participante' ? 'participante' : 'panel'); ?>
-    <script src="<?= escapar(ruta_app('/js/' . $script . '.js')) ?>" defer></script>
+    <?php $rutaScript = '/js/' . $script . '.js'; ?>
+    <script src="<?= escapar(ruta_app($rutaScript) . '?v=' . filemtime(RAIZ . '/publico' . $rutaScript)) ?>" defer></script>
 </head>
 <body class="vista-<?= escapar($vista) ?>">
 <svg class="simbolos" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>

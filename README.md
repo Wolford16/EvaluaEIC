@@ -2,11 +2,11 @@
 
 Plataforma local de evaluaciones de la Escuela de Investigación Criminal. Usa PHP 8.0 o superior, HTML, CSS y JavaScript, con el logo original y la identidad visual de la EIC.
 
-Para instalar en Bitnami, copia esta carpeta y sigue [la guía de instalación](documentacion/instalacion_servidor.md).
+Para instalar en cPanel o Bitnami, sigue [la guía de instalación](documentacion/instalacion_servidor.md).
 
 ## Iniciar en este equipo
 
-Las bibliotecas ya están descargadas y la base de datos local está preparada. Abre PowerShell en la carpeta del proyecto y ejecuta:
+Crea una base MySQL o MariaDB y ajusta `configuracion/servidor.php`. Para el servidor integrado usa `http://localhost:8080` como `APLICACION_URL`. Abre PowerShell en la carpeta del proyecto y ejecuta:
 
 ```powershell
 .\iniciar.ps1
@@ -18,13 +18,13 @@ Abre [http://localhost:8080](http://localhost:8080). Mantén la consola abierta;
 powershell -ExecutionPolicy Bypass -File .\iniciar.ps1
 ```
 
-El iniciador local usa el PHP de este equipo. Puedes elegir otro ejecutable mediante `EVALUAEIC_PHP`. La base local utiliza SQLite.
+El iniciador prepara las tablas en la base configurada y usa el PHP de este equipo. Puedes elegir otro ejecutable mediante `EVALUAEIC_PHP`.
 
-En una base nueva, pulsa **Primer acceso de administrador** en el login. Escribe tu nombre, usuario y contraseña, y pulsa **Crear administrador**. Al guardar la cuenta, entras directamente al panel y el primer acceso queda cerrado.
+En una base nueva, introduce el código de instalación y pulsa **Primer acceso de administrador**. Escribe tu nombre, usuario y contraseña, y pulsa **Crear administrador**. Al guardar la cuenta, entras directamente al panel y el primer acceso queda cerrado.
 
-El código de `almacenamiento/clave_instalacion.txt` se usa en **Verificar base de datos**. Los nombres de usuario son únicos y tienen de 3 a 40 caracteres.
+Define el código en `CLAVE_INSTALACION` o abre **Verificar base de datos** para que se genere en `almacenamiento/clave_instalacion.txt`. Los nombres de usuario son únicos y tienen de 3 a 40 caracteres.
 
-Al iniciar una instalación anterior, la actualización convierte el correo en un nombre de usuario tomando su parte anterior a `@`. Si hay coincidencias, añade un sufijo como `.1`. Conserva los identificadores, contraseñas, materiales y evaluaciones. En SQLite crea un respaldo completo previo dentro de `almacenamiento/respaldos`.
+Al preparar una instalación MySQL anterior, la actualización convierte el correo en un nombre de usuario tomando su parte anterior a `@`. Si hay coincidencias, añade un sufijo como `.1`. Conserva los identificadores, contraseñas, materiales y evaluaciones.
 
 ## Probar una evaluación
 
@@ -88,15 +88,13 @@ El QR contiene ese enlace. Un teléfono no puede acceder al `localhost` de otro 
 
 ## Base de datos
 
-La instalación local usa SQLite y conserva la base anterior de `almacenamiento`. Las nuevas bases locales usan el nombre `evaluaeic.sqlite`.
-
-Para MySQL 8 o MariaDB compatible:
+EvaluaEIC usa MySQL 8 o MariaDB compatible en todos los entornos:
 
 1. Selecciona la base asignada e importa `database/instalar_evaluaeic.sql`.
-2. Cambia `BD_MOTOR` a `mysql` en `configuracion/servidor.php` y completa host, puerto, nombre, usuario y clave.
+2. Completa host, puerto, nombre, usuario y clave en `configuracion/servidor.php`.
 3. En una base nueva, abre el sistema y pulsa **Primer acceso de administrador**.
 
-Cambiar de motor inicia una base separada. Si necesitas llevar los registros locales, planifica la migración de SQLite y sus PDF antes de la puesta en marcha.
+Los registros de instalaciones anteriores en SQLite requieren una migración de datos independiente. Conserva el archivo como respaldo si necesitas esos registros.
 
 ## Organización
 
@@ -109,7 +107,7 @@ EvaluaEIC/
 ├── configuracion/           Ajustes privados, incluido servidor.php
 ├── documentacion/           Arquitectura y decisiones de esta versión
 ├── herramientas/            Preparación inicial y Composer
-├── almacenamiento/          Base de datos, sesiones, PDF y temporales privados
+├── almacenamiento/          Sesiones, PDF y temporales privados
 ├── publico/                 Entrada de la aplicación y recursos del navegador
 │   ├── css/                 Estilos locales
 │   ├── imagenes/            Marca del proyecto
@@ -128,7 +126,7 @@ Los nombres de nuestro código están en español. Los nombres estándar de Comp
 
 ## Instalar bibliotecas en otro equipo
 
-Con Composer instalado y las extensiones PHP PDO, pdo_sqlite (o pdo_mysql), mbstring, fileinfo, cURL, iconv y zlib activadas:
+Con Composer instalado y las extensiones PHP PDO, pdo_mysql, mbstring, fileinfo, cURL, iconv y zlib activadas:
 
 ```powershell
 composer install
@@ -144,7 +142,7 @@ C:\xampp\php\php.exe herramientas/preparar.php
 node pruebas/recorrido.mjs
 ```
 
-Requiere Node.js 20 o superior y PHP. Inicia su propio servidor en el puerto 8091 y usa una base SQLite aislada dentro de una carpeta temporal de `almacenamiento`. Elimina únicamente esa carpeta al terminar. Comprueba el primer acceso, el cierre permanente del alta inicial, los roles, PDF, salas, respuestas, tiempos, puntos, equipos y conservación del historial.
+Requiere Node.js 20 o superior, PHP y una base MySQL desechable y vacía. Indica su nombre en `EVALUAEIC_BD_PRUEBAS`, por ejemplo `evaluaeic_pruebas`, y ajusta las variables de conexión `BD_HOST`, `BD_PUERTO`, `BD_USUARIO` y `BD_CLAVE` para esa base. Inicia su propio servidor en el puerto 8091. Comprueba el primer acceso, el cierre permanente del alta inicial, los roles, PDF, salas, respuestas, tiempos, puntos, equipos y conservación del historial.
 
 Las pruebas específicas de OpenRouter funcionan con un transporte simulado.
 
@@ -152,7 +150,7 @@ Las pruebas específicas de OpenRouter funcionan con un transporte simulado.
 C:\xampp\php\php.exe pruebas/openrouter.php
 ```
 
-La actualización de cuentas anteriores tiene una prueba independiente con 14 comprobaciones:
+La actualización de cuentas anteriores tiene una prueba independiente. Usa otra base vacía en `EVALUAEIC_BD_PRUEBAS`, por ejemplo `evaluaeic_pruebas_migracion`:
 
 ```powershell
 C:\xampp\php\php.exe pruebas/migracion_usuarios.php

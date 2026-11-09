@@ -44,10 +44,8 @@ final class Administracion {
         if ($id===$administrador) throw new ErrorAplicacion('Tu propia cuenta debe permanecer activa.');
 
         return BaseDatos::transaccion(static function () use ($id,$administrador,$eliminar): array {
-            $mysql=entorno('BD_MOTOR','sqlite')==='mysql';
             // Bloquear ambas cuentas antes de validarlas evita que dos administradores se quiten el acceso entre sí.
-            if (!$mysql) BaseDatos::ejecutar('UPDATE usuarios SET estado=estado WHERE id IN (?,?)',[$id,$administrador]);
-            $cuentas=BaseDatos::ejecutar('SELECT id,estado FROM usuarios WHERE id IN (?,?) ORDER BY id'.($mysql?' FOR UPDATE':''),[$id,$administrador])->fetchAll(\PDO::FETCH_KEY_PAIR);
+            $cuentas=BaseDatos::ejecutar('SELECT id,estado FROM usuarios WHERE id IN (?,?) ORDER BY id FOR UPDATE',[$id,$administrador])->fetchAll(\PDO::FETCH_KEY_PAIR);
             if (($cuentas[$administrador]??null)!=='activo') throw new ErrorAplicacion('Inicia sesión para continuar.',401);
             $estado=$cuentas[$id]??'eliminado';
             if ($estado==='eliminado') throw new ErrorAplicacion('Usuario no encontrado.',404);

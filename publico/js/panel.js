@@ -21,8 +21,6 @@
     const informe=verRespuestas?`<div class="grupo-botones margen-superior" role="group" aria-label="Informe general">${enlacesInforme(s.codigo)}</div>`:'';
     return informe+resultadosEquipos(s)+tituloIndividual+ranking(s.ranking, s.total, null, verRespuestas);
   }
-  document.getElementById('cerrar-sesion').addEventListener('click',async()=>{try { const r=await api('salir',{}); location.assign(r.destino); } catch(error){aviso(error.message,true);} });
-
   async function cargarMateriales() {
     ({documentos:materiales}=await api('materiales'));
     if(esAdmin) return;

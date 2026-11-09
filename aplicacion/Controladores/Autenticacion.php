@@ -47,7 +47,16 @@ final class Autenticacion {
     }
     public static function salir(): array {
         $_SESSION = [];
-        session_destroy();
+        if (!session_destroy()) throw new ErrorAplicacion('No se pudo cerrar la sesión. Vuelve a intentarlo.', 500);
+        $cookie = session_get_cookie_params();
+        setcookie(session_name(), '', [
+            'expires' => time() - 3600,
+            'path' => $cookie['path'],
+            'domain' => $cookie['domain'],
+            'secure' => $cookie['secure'],
+            'httponly' => $cookie['httponly'],
+            'samesite' => $cookie['samesite'],
+        ]);
         return ['destino' => ruta_app('/ingreso')];
     }
 }

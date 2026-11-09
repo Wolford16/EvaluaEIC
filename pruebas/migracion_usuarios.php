@@ -2,10 +2,12 @@
 declare(strict_types=1);
 if (PHP_SAPI !== 'cli') exit(1);
 $raiz = dirname(__DIR__);
-$directorio = $raiz . '/almacenamiento/pruebas-migracion-' . bin2hex(random_bytes(5));
-mkdir($directorio, 0700, true);
-putenv('BD_MOTOR=sqlite');
-putenv('BD_ARCHIVO=' . $directorio . '/datos.sqlite');
+$basePruebas = getenv('EVALUAEIC_BD_PRUEBAS') ?: '';
+if (!preg_match('/^evaluaeic_pruebas(?:_\w+)?$/D', $basePruebas)) {
+    fwrite(STDERR, "Indica una base de pruebas vacía en EVALUAEIC_BD_PRUEBAS.\n");
+    exit(1);
+}
+putenv('BD_NOMBRE=' . $basePruebas);
 require $raiz . '/configuracion/aplicacion.php';
 use EvaluaEIC\Servicios\{BaseDatos, Migraciones, DatosIniciales};
 $comprobaciones = 0;
@@ -15,7 +17,10 @@ function comprobar(bool $condicion, string $mensaje): void {
     $comprobaciones++;
 }
 try {
-    $esquema = str_replace('usuario VARCHAR(40)', 'correo VARCHAR(150)', file_get_contents(RAIZ . '/herramientas/esquema_sqlite.sql'));
+    if ((int) BaseDatos::ejecutar('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()')->fetchColumn() !== 0) {
+        throw new RuntimeException('La base de pruebas debe estar vacía.');
+    }
+    $esquema = str_replace('usuario VARCHAR(40)', 'correo VARCHAR(150)', file_get_contents(RAIZ . '/database/instalar_evaluaeic.sql'));
     BaseDatos::conexion()->exec($esquema);
     $hash = password_hash('ClaveAnterior2026!', PASSWORD_DEFAULT);
     foreach (['admin@institucion.edu', 'docente@institucion.edu', 'docente@otra.edu'] as $indice => $correo) {
@@ -30,7 +35,7 @@ try {
     BaseDatos::ejecutar('INSERT INTO respuestas_participantes (participante_id,indice,opcion,correcta,tiempo,puntos) VALUES (1,0,0,1,5,875)');
 
     Migraciones::actualizarUsuarios();
-    $columnas = array_column(BaseDatos::conexion()->query('PRAGMA table_info(usuarios)')->fetchAll(), 'name');
+    $columnas = array_column(BaseDatos::conexion()->query('SHOW COLUMNS FROM usuarios')->fetchAll(), 'Field');
     comprobar(in_array('usuario', $columnas, true) && !in_array('correo', $columnas, true), 'La columna correo se reemplaza por usuario.');
     $usuarios = BaseDatos::ejecutar('SELECT * FROM usuarios ORDER BY id')->fetchAll();
     comprobar(count($usuarios) === 3, 'Se conservan las tres cuentas.');
@@ -43,22 +48,9 @@ try {
     comprobar(BaseDatos::ejecutar('SELECT preguntas_json FROM salas_evaluacion WHERE id=1')->fetchColumn() === $copia, 'Se conserva la copia de la evaluación.');
     comprobar((int)BaseDatos::ejecutar('SELECT COUNT(*) FROM participantes')->fetchColumn() === 1, 'Se conservan los participantes.');
     comprobar((int)BaseDatos::ejecutar('SELECT puntos FROM respuestas_participantes WHERE id=1')->fetchColumn() === 875, 'Se conservan las respuestas y puntos.');
-    $respaldos = glob($directorio . '/respaldos/*.sqlite');
-    comprobar(count($respaldos) === 1, 'Se crea un respaldo antes de migrar.');
-    $respaldo = new PDO('sqlite:' . $respaldos[0]);
-    comprobar($respaldo->query('SELECT correo FROM usuarios WHERE id=1')->fetchColumn() === 'admin@institucion.edu', 'El respaldo conserva los datos anteriores.');
-    $respaldo = null;
     Migraciones::actualizarUsuarios();
-    comprobar(count(glob($directorio . '/respaldos/*.sqlite')) === 1, 'La migración es idempotente.');
+    comprobar(BaseDatos::ejecutar('SELECT * FROM usuarios ORDER BY id')->fetchAll() === $usuarios, 'La migración es idempotente.');
     echo "Correcto: {$comprobaciones} comprobaciones de migración sin pérdida de datos.\n";
 } finally {
     BaseDatos::desconectar();
-    $resuelto = realpath($directorio);
-    $almacenamiento = realpath(RAIZ . '/almacenamiento');
-    // Solo elimina la carpeta temporal exacta creada para esta prueba.
-    if ($resuelto && dirname($resuelto) === $almacenamiento && str_starts_with(basename($resuelto), 'pruebas-migracion-')) {
-        $archivos = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($resuelto, FilesystemIterator::SKIP_DOTS), RecursiveIteratorIterator::CHILD_FIRST);
-        foreach ($archivos as $archivo) $archivo->isDir() ? rmdir($archivo->getPathname()) : unlink($archivo->getPathname());
-        rmdir($resuelto);
-    }
 }

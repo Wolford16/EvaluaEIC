@@ -67,4 +67,4 @@ Los borradores se crean después de completar toda la generación. El guardado b
 
 ## Alcance y siguientes ampliaciones posibles
 
-Esta versión implementa los flujos de la especificación en un entorno local. No incluye OCR, recuperación de contraseña por correo, exportación de resultados, WebSockets ni despliegue público. El sondeo HTTP y SQLite simplifican la instalación. Para grupos simultáneos se recomienda Apache y validar el despliegue MySQL, la carga esperada y la configuración de red antes de una actividad real.
+La aplicación usa sondeo HTTP y MySQL o MariaDB. Para grupos simultáneos se recomienda Apache y validar la carga esperada y la configuración de red antes de una actividad real.

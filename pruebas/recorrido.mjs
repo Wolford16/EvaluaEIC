@@ -1,4 +1,4 @@
-// Prueba HTTP completa con una base SQLite aislada. No modifica los materiales del usuario.
+// Prueba HTTP completa con una base MySQL desechable y vacía.
 import assert from 'node:assert/strict';
 import {spawn,spawnSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
@@ -9,11 +9,15 @@ import {setTimeout as esperar} from 'node:timers/promises';
 
 const raiz=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const php=process.env.EVALUAEIC_PHP || ['C:/xampp/php/php.exe','C:/php/php.exe'].find(existsSync) || 'php';
+const basePruebas=process.env.EVALUAEIC_BD_PRUEBAS;
+if(!/^evaluaeic_pruebas(?:_\w+)?$/.test(basePruebas??''))throw new Error('Indica una base de pruebas vacía en EVALUAEIC_BD_PRUEBAS, por ejemplo evaluaeic_pruebas.');
+const codigoInstalacion=randomBytes(24).toString('hex');
+const entorno={...process.env,BD_NOMBRE:basePruebas,CLAVE_INSTALACION:codigoInstalacion,APLICACION_URL:'http://127.0.0.1:8091',OPENROUTER_API_KEY:'',OPENROUTER_MODEL:''};
+if(ejecutarPhp("echo EvaluaEIC\\Servicios\\BaseDatos::ejecutar('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE()')->fetchColumn();")!=='0')throw new Error('La base de pruebas debe estar vacía.');
 const directorio=path.join(raiz,'almacenamiento',`pruebas-${Date.now()}`);
 const tokenPrueba=randomBytes(24).toString('hex');
 mkdirSync(directorio,{recursive:true});
 mkdirSync(path.join(raiz,'almacenamiento','documentos'),{recursive:true});
-const entorno={...process.env,BD_MOTOR:'sqlite',BD_ARCHIVO:path.join(directorio,'datos.sqlite'),APLICACION_URL:'http://127.0.0.1:8091',OPENROUTER_API_KEY:'',OPENROUTER_MODEL:''};
 const inicial=spawnSync(php,['herramientas/preparar.php'],{cwd:raiz,env:entorno,encoding:'utf8'});
 if(inicial.status!==0)throw new Error(inicial.stderr||inicial.stdout);
 const servidor=spawn(php,['-d',`upload_tmp_dir=${directorio}`,'-d','display_errors=0','-d',`error_log=${directorio}/errores.log`,'-S','127.0.0.1:8091','-t','publico','servidor.php'],{cwd:raiz,env:entorno,stdio:'ignore'});
@@ -24,49 +28,87 @@ class Cliente {
   cookie='';csrf='';
   async pagina(ruta){const r=await fetch(`http://127.0.0.1:8091${ruta}`,{headers:{Cookie:this.cookie},redirect:'manual'});this.actualizar(r);const html=await r.text();this.csrf=html.match(/name="csrf-token" content="([a-f0-9]+)"/)?.[1]||this.csrf;return {r,html};}
   actualizar(r){const cookie=r.headers.get('set-cookie');if(cookie)this.cookie=cookie.split(';')[0];}
-  async api(accion,datos=null,token=''){const headers={Cookie:this.cookie,'X-CSRF-Token':this.csrf};if(token)headers.Authorization=`Bearer ${token}`;const opciones={headers,method:datos===null?'GET':'POST'};if(datos instanceof FormData)opciones.body=datos;else if(datos!==null){headers['Content-Type']='application/json';opciones.body=JSON.stringify(datos);}const r=await fetch(`http://127.0.0.1:8091/api/${accion}`,opciones);this.actualizar(r);const valor=await r.json();return {...valor,estadoHttp:r.status};}
-  async formulario(ruta,datos){
+  async api(accion,datos=null,token=''){
+    const [operacion,consulta]=accion.split('?',2);
+    const parametros=new URLSearchParams(consulta);
+    parametros.set('api',operacion);
+    const headers={Cookie:this.cookie,Accept:'application/json'};
+    if(token)headers.Authorization=`Bearer ${token}`;
+    const opciones={headers,method:datos===null?'GET':'POST'};
+    if(datos!==null){
+      const formulario=datos instanceof FormData ? datos : new URLSearchParams(
+        Object.entries(datos).map(([campo,valor])=>[campo,Array.isArray(valor)?JSON.stringify(valor):valor])
+      );
+      formulario.set('csrf',this.csrf);
+      opciones.body=formulario;
+    }
+    const r=await fetch(`http://127.0.0.1:8091/index.php?${parametros}`,opciones);
+    this.actualizar(r);
+    return {...await r.json(),estadoHttp:r.status};
+  }
+  async formulario(ruta,datos,solicitarJson=true){
     const r=await fetch(`http://127.0.0.1:8091${ruta}`,{
-      method:'POST',headers:{Cookie:this.cookie,Accept:'application/json'},redirect:'manual',
+      method:'POST',headers:{Cookie:this.cookie,Accept:solicitarJson?'application/json':'text/html'},redirect:'manual',
       body:new URLSearchParams({csrf:this.csrf,...datos})
     });
     this.actualizar(r);
-    return {...await r.json(),estadoHttp:r.status};
+    return solicitarJson
+      ? {...await r.json(),estadoHttp:r.status}
+      : {estadoHttp:r.status,destino:r.headers.get('location'),html:await r.text()};
   }
   async descargar(ruta){
     const r=await fetch(`http://127.0.0.1:8091${ruta}`,{headers:{Cookie:this.cookie},redirect:'manual'});
     return {r,contenido:Buffer.from(await r.arrayBuffer())};
   }
-  async ingresar(usuario,clave){await this.pagina('/ingreso');const r=await this.api('ingresar',{usuario,clave});comprobar(r.ok,'Ingreso válido');await this.pagina(r.destino);}
+  async ingresar(usuario,clave){
+    await this.pagina('/ingreso');
+    const r=await this.formulario('/index.php',{usuario,clave},false);
+    comprobar(r.estadoHttp===303 && /^\/(admin|docente)$/.test(r.destino),'Ingreso válido por formulario PHP');
+    comprobar((await this.pagina(r.destino)).r.status===200,'El formulario abre una sesión en el panel');
+  }
 }
 try {
   comprobar(ejecutarPhp("echo EvaluaEIC\\Servicios\\BaseDatos::ejecutar('SELECT COUNT(*) FROM usuarios')->fetchColumn();")==='0','La instalación comienza sin cuentas de ejemplo');
   for(let intento=0;intento<30;intento++){try{await fetch('http://127.0.0.1:8091/ingreso');break;}catch{await esperar(100);}}
   const instalador=new Cliente(),instaladorAjeno=new Cliente();
   const ingresoInicial=await instalador.pagina('/ingreso');
-  comprobar(ingresoInicial.html.includes('Primer acceso de administrador')&&!ingresoInicial.html.includes('name="clave_instalacion"'),'El primer acceso usa un botón y no pide el código de diagnóstico');
+  comprobar(ingresoInicial.html.includes('Primer acceso de administrador')&&ingresoInicial.html.includes('name="clave_instalacion"'),'El primer acceso pide el código de instalación');
+  const diagnostico=await instalador.formulario('/index.php?verificar_bd=1',{clave_instalacion:codigoInstalacion},false);
+  comprobar(diagnostico.estadoHttp===200 && diagnostico.html.includes(`MySQL/MariaDB, base ${basePruebas}`),'El diagnóstico nativo confirma la base MySQL seleccionada');
   await instaladorAjeno.pagina('/crear_administrador.php');
   comprobar((await instaladorAjeno.formulario('/crear_administrador.php',{accion:'guardar'})).estadoHttp===403,'Guardar el primer usuario exige haber abierto el primer acceso');
   const csrfInicial=instalador.csrf;
   instalador.csrf='invalido';
-  comprobar((await instalador.formulario('/crear_administrador.php',{accion:'entrar'})).estadoHttp===403,'El botón de primer acceso comprueba la sesión');
+  comprobar((await instalador.formulario('/crear_administrador.php',{accion:'entrar',clave_instalacion:codigoInstalacion})).estadoHttp===403,'El botón de primer acceso comprueba la sesión');
   instalador.csrf=csrfInicial;
-  const primerAcceso=await instalador.formulario('/crear_administrador.php',{accion:'entrar'});
-  comprobar(primerAcceso.ok,'El botón abre la creación del administrador sin credenciales');
+  comprobar((await instalador.formulario('/crear_administrador.php',{accion:'entrar',clave_instalacion:'incorrecto'},false)).estadoHttp===403,'El código incorrecto no abre el alta inicial');
+  const primerAcceso=await instalador.formulario('/crear_administrador.php',{accion:'entrar',clave_instalacion:codigoInstalacion},false);
+  comprobar(primerAcceso.estadoHttp===303 && primerAcceso.destino==='/crear_administrador.php','El formulario nativo abre la creación del administrador');
   const formularioInicial=await instalador.pagina(primerAcceso.destino);
   comprobar(formularioInicial.html.includes('name="nombre"')&&formularioInicial.html.includes('name="usuario"')&&!formularioInicial.html.includes('name="clave_instalacion"'),'El primer administrador solo necesita nombre, usuario y contraseña');
   comprobar((await instalador.api('usuarios')).estadoHttp===401,'El primer acceso está limitado a crear la cuenta real');
   const datosIniciales={accion:'guardar',nombre:'Administración inicial',usuario:'administracion.inicial',clave:'ClaveInicialÁ2026!'};
   comprobar((await instalador.formulario('/crear_administrador.php',{...datosIniciales,clave:'corta'})).estadoHttp===422 &&
     ejecutarPhp("echo EvaluaEIC\\Controladores\\Instalacion::completada()?'cerrada':'abierta';")==='abierta','Un dato inválido no cierra la instalación');
-  const altaInicial=await instalador.formulario('/crear_administrador.php',datosIniciales);
-  comprobar(altaInicial.estadoHttp===201&&altaInicial.destino.endsWith('/admin'),'La cuenta real se guarda y entra al panel directamente');
-  comprobar((await instalador.pagina(altaInicial.destino)).r.status===200&&(await instalador.api('usuarios')).usuarios.length===1,'La sesión corresponde al único administrador guardado');
+  const altaInicial=await instalador.formulario('/crear_administrador.php',datosIniciales,false);
+  comprobar(altaInicial.estadoHttp===303&&altaInicial.destino==='/admin','La cuenta real se guarda y entra al panel directamente');
+  const panelInicial=await instalador.pagina(altaInicial.destino);
+  comprobar(panelInicial.r.status===200&&(await instalador.api('usuarios')).usuarios.length===1,'La sesión corresponde al único administrador guardado');
+  comprobar(panelInicial.html.includes('method="post" action="/index.php?salir=1"'),'El panel ofrece el cierre de sesión mediante formulario PHP');
   comprobar(ejecutarPhp("echo password_verify('ClaveInicialÁ2026!',EvaluaEIC\\Servicios\\BaseDatos::ejecutar('SELECT clave_hash FROM usuarios')->fetchColumn())?'correcta':'incorrecta';")==='correcta','La contraseña se guarda como hash compatible y conserva los caracteres');
   const ingresoTrasAlta=await instaladorAjeno.pagina('/ingreso');
-  comprobar(!ingresoTrasAlta.html.includes('Primer acceso de administrador')&&ingresoTrasAlta.html.includes('formulario-ingreso'),'El botón desaparece después de crear la cuenta');
+  comprobar(!ingresoTrasAlta.html.includes('Primer acceso de administrador')&&ingresoTrasAlta.html.includes('id="formulario-ingreso" method="post" action="/index.php"'),'El alta cerrada deja el formulario directo a PHP');
+  const ingresoInvalido=await instaladorAjeno.formulario('/index.php',{usuario:datosIniciales.usuario,clave:'incorrecta'},false);
+  comprobar(ingresoInvalido.estadoHttp===401 && ingresoInvalido.html.includes('Usuario o contraseña incorrectos'),'El formulario nativo informa credenciales inválidas');
   comprobar((await instaladorAjeno.formulario('/crear_administrador.php',{accion:'entrar'})).estadoHttp===409,'Otra sesión no puede reabrir el primer acceso');
-  await instalador.api('salir',{});
+  comprobar((await instalador.pagina('/index.php?salir=1')).r.status===405,'Abrir la dirección de salida no cierra la sesión');
+  comprobar((await instalador.formulario('/index.php?salir=1',{csrf:'invalido'},false)).estadoHttp===403,'El cierre comprueba el código CSRF');
+  comprobar((await instalador.pagina('/admin')).r.status===200,'Las solicitudes rechazadas conservan la sesión');
+  const cookieAnterior=instalador.cookie;
+  const salida=await instalador.formulario('/index.php?salir=1',{},false);
+  comprobar(salida.estadoHttp===303 && salida.destino==='/ingreso' && instalador.cookie!==cookieAnterior,'El cierre elimina la cookie y redirige al ingreso');
+  const sesionAnterior=new Cliente(); sesionAnterior.cookie=cookieAnterior;
+  comprobar((await sesionAnterior.pagina('/admin')).r.headers.get('location')==='/ingreso','La sesión anterior ya no puede volver al panel');
   await instalador.ingresar(datosIniciales.usuario,datosIniciales.clave);
   // Solo en la base desechable del recorrido, comprueba el cierre permanente y restaura el estado vacío para probar el comando.
   ejecutarPhp('EvaluaEIC\\Servicios\\BaseDatos::ejecutar("DELETE FROM usuarios");');

@@ -41,9 +41,7 @@ final class Materiales {
         $token=Seguridad::texto($datos['token']??'',48,48,'Borrador');
         if (!ctype_xdigit($token)) throw new ErrorAplicacion('El identificador del borrador no es válido.');
         return BaseDatos::transaccion(function() use ($token,$usuario,$datos) {
-            $esMysql=BaseDatos::conexion()->getAttribute(\PDO::ATTR_DRIVER_NAME)==='mysql';
-            if (!$esMysql) BaseDatos::ejecutar('UPDATE borradores SET token=token WHERE token=? AND usuario_id=?',[$token,$usuario['id']]);
-            $b=BaseDatos::ejecutar('SELECT * FROM borradores WHERE token=? AND usuario_id=?'.($esMysql?' FOR UPDATE':''),[$token,$usuario['id']])->fetch();
+            $b=BaseDatos::ejecutar('SELECT * FROM borradores WHERE token=? AND usuario_id=? FOR UPDATE',[$token,$usuario['id']])->fetch();
             if (!$b) {
                 $existente=BaseDatos::ejecutar('SELECT id FROM documentos WHERE ruta_archivo=? AND subido_por_id=?',[$token.'.pdf',$usuario['id']])->fetchColumn();
                 if ($existente) return ['id'=>(int)$existente,'mensaje'=>'El material ya estaba guardado.','reutilizado'=>true];

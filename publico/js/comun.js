@@ -6,15 +6,23 @@ window.Evalua = (() => {
   const escapar = valor => String(valor ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const icono = nombre => `<svg class="icono" aria-hidden="true"><use href="#i-${nombre}"/></svg>`;
   async function api(accion, datosEnvio = null, token = '') {
-    const opciones = {method: datosEnvio === null ? 'GET' : 'POST', headers: {'X-CSRF-Token':csrf}, credentials:'same-origin'};
+    const [operacion, consulta] = accion.split('?', 2);
+    const parametros = new URLSearchParams(consulta);
+    parametros.set('api', operacion);
+    const opciones = {method: datosEnvio === null ? 'GET' : 'POST', headers: {Accept:'application/json'}, credentials:'same-origin'};
     if (token) opciones.headers.Authorization = `Bearer ${token}`;
-    if (datosEnvio instanceof FormData) opciones.body=datosEnvio;
-    else if (datosEnvio !== null) { opciones.headers['Content-Type']='application/json'; opciones.body=JSON.stringify(datosEnvio); }
+    if (datosEnvio !== null) {
+      const formulario = datosEnvio instanceof FormData ? datosEnvio : new URLSearchParams(
+        Object.entries(datosEnvio).map(([campo, valor]) => [campo, Array.isArray(valor) ? JSON.stringify(valor) : valor])
+      );
+      formulario.set('csrf', csrf);
+      opciones.body = formulario;
+    }
     let respuesta;
-    try { respuesta=await fetch(ruta(`/api/${accion}`),opciones); }
+    try { respuesta=await fetch(ruta(`/index.php?${parametros}`),opciones); }
     catch { throw new Error('No hay conexión con el servidor. Inténtalo de nuevo.'); }
     let resultado;
-    try { resultado=await respuesta.json(); } catch { throw new Error('El servidor no pudo procesar la solicitud. Revisa su registro.'); }
+    try { resultado=await respuesta.json(); } catch { throw new Error(`El servidor devolvió una respuesta inesperada (HTTP ${respuesta.status}) al ejecutar ${operacion}. Revisa el registro del alojamiento.`); }
     if (!respuesta.ok || !resultado.ok) { const error=new Error(resultado.mensaje || 'No se pudo completar la operación.'); error.estado=respuesta.status; error.codigo=resultado.codigo_error; error.reintentarEn=resultado.reintentar_en; throw error; }
     return resultado;
   }

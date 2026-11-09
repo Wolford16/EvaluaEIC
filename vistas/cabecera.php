@@ -3,6 +3,9 @@
     <nav class="acciones-cabecera" aria-label="Acciones de cuenta">
         <a class="boton ambar pequeno" href="<?= escapar(ruta_app('/participar')) ?>" target="_blank" rel="noopener" aria-label="Acceso de participantes"><svg class="icono"><use href="#i-qr"/></svg><span>Participantes</span></a>
         <div class="cuenta"><span class="inicial-usuario"><?= escapar(mb_substr($usuario['nombre'],0,1)) ?></span><span><?= escapar($usuario['nombre']) ?><small><?= $usuario['rol']==='admin'?'Administrador':'Docente / supervisor' ?></small></span></div>
-        <button id="cerrar-sesion" class="boton-icono" aria-label="Cerrar sesión" title="Cerrar sesión"><svg class="icono"><use href="#i-salir"/></svg></button>
+        <form method="post" action="<?= escapar(ruta_app('/index.php?salir=1')) ?>">
+            <input type="hidden" name="csrf" value="<?= escapar($csrf) ?>">
+            <button type="submit" class="boton-icono" aria-label="Cerrar sesión" title="Cerrar sesión"><svg class="icono"><use href="#i-salir"/></svg></button>
+        </form>
     </nav>
 </header>

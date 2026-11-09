@@ -8,13 +8,26 @@ if (!defined('RAIZ')) {
     exit;
 }
 
+if (!extension_loaded('pdo_mysql')) {
+    throw new ErrorAplicacion('Activa la extensión pdo_mysql en la versión de PHP que usa este sitio.', 503);
+}
+
 try {
     $pdo = BaseDatos::conexion();
     $pdo->query('SELECT 1')->fetchColumn();
-    $mysql = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
-    $base = $mysql ? (string) $pdo->query('SELECT DATABASE()')->fetchColumn() : '';
-} catch (PDOException) {
-    throw new ErrorAplicacion('PHP no pudo conectar con la base. Revisa el motor, el host, el puerto, el nombre y las credenciales en configuracion/servidor.php.', 503);
+    $base = (string) $pdo->query('SELECT DATABASE()')->fetchColumn();
+} catch (PDOException $error) {
+    $codigo = (int) ($error->errorInfo[1] ?? 0);
+    error_log('EvaluaEIC no pudo conectar a MySQL. SQLSTATE ' . $error->getCode() . ', código ' . $codigo);
+    $detalle = match ($codigo) {
+        1044 => 'Comprueba que el usuario de MySQL esté asignado a la base en cPanel.',
+        1045 => 'Comprueba el usuario y la contraseña de MySQL.',
+        1049 => 'Comprueba el nombre completo de la base asignada.',
+        2002, 2003 => 'Comprueba el host y el puerto de MySQL con el alojamiento.',
+        default => 'Comprueba la configuración de MySQL con el alojamiento.',
+    };
+    $referencia = $codigo ? " (código {$codigo})" : '';
+    throw new ErrorAplicacion("PHP no pudo conectar a MySQL{$referencia}. {$detalle}", 503);
 }
 
 try {
@@ -28,7 +41,7 @@ try {
     throw new ErrorAplicacion('PHP se conectó, pero el esquema de EvaluaEIC está incompleto o el usuario carece de permiso de lectura. Revisa la base asignada y la importación del SQL.', 503);
 }
 
-$motor = $mysql ? "MySQL/MariaDB, base {$base}" : 'SQLite';
+$motor = "MySQL/MariaDB, base {$base}";
 // Estas sentencias comprueban INSERT en las dos tablas del alta sin insertar filas.
 $pruebas = [
     'configuraciones' => "INSERT INTO configuraciones (nombre, valor) SELECT 'diagnostico', '1' WHERE 1 = 0",

@@ -1,8 +1,18 @@
 <?php
 declare(strict_types=1);
+ini_set('display_errors', '0');
+ini_set('log_errors', '1');
 require dirname(__DIR__) . '/configuracion/aplicacion.php';
 use EvaluaEIC\Servicios\{Seguridad, BaseDatos, Evaluacion, InteligenciaArtificial, ErrorAplicacion};
 use EvaluaEIC\Controladores\{Autenticacion, Materiales, Salas, Administracion, Instalacion};
+
+function leerJsonSolicitud(string $cuerpo): array {
+    if (strlen($cuerpo)>250000) throw new ErrorAplicacion('La solicitud es demasiado grande.',413);
+    try { $datos=json_decode($cuerpo,true,64,JSON_THROW_ON_ERROR); }
+    catch (JsonException) { throw new ErrorAplicacion('La solicitud no contiene un JSON válido.',400); }
+    if (!is_array($datos)) throw new ErrorAplicacion('Revisa los datos enviados.',400);
+    return $datos;
+}
 
 ini_set('session.use_strict_mode','1');
 $rutaSesiones=RAIZ.'/almacenamiento/sesiones';
@@ -24,7 +34,9 @@ $solicitada = rtrim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?: '/', '/'
 $dentroDeLaApp = $rutaBase === '' || $solicitada === $rutaBase || str_starts_with($solicitada, $rutaBase . '/');
 $ruta = $dentroDeLaApp ? (substr($solicitada, strlen($rutaBase)) ?: '/') : '';
 if ($ruta === '/index.php') {
-    if (($_GET['verificar_bd'] ?? null) === '1') $ruta = '/verificar_bd.php';
+    if (isset($_GET['api'])) $ruta = '/api/' . (is_string($_GET['api']) ? $_GET['api'] : '');
+    elseif (($_GET['verificar_bd'] ?? null) === '1') $ruta = '/verificar_bd.php';
+    elseif (($_GET['salir'] ?? null) === '1') $ruta = '/salir';
     elseif ($_SERVER['REQUEST_METHOD'] === 'POST') $ruta = '/ingreso';
 }
 $esApi = str_starts_with($ruta,'/api/');
@@ -33,24 +45,34 @@ try {
         Instalacion::mostrarDiagnostico();
         exit;
     }
+    if ($ruta === '/salir') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') throw new ErrorAplicacion('Método no permitido.', 405);
+        $csrfFormulario = $_POST['csrf'] ?? '';
+        Seguridad::csrf(is_string($csrfFormulario) ? $csrfFormulario : '');
+        $resultado = Autenticacion::salir();
+        header('Location: ' . $resultado['destino'], true, 303);
+        exit;
+    }
     if ($esApi) {
         header('Content-Type: application/json; charset=utf-8');
         $accion=substr($ruta,5); $metodo=$_SERVER['REQUEST_METHOD'];
         $lecturas=['materiales','material','usuarios','motores','salas','estado','respuestas'];
         $esLectura=in_array($accion,$lecturas,true);
         if ($metodo!==($esLectura?'GET':'POST')) throw new ErrorAplicacion('Método no permitido.',405);
-        if (!$esLectura) Seguridad::csrf();
+        if (!$esLectura) {
+            $csrfFormulario = $_POST['csrf'] ?? null;
+            Seguridad::csrf(is_string($csrfFormulario) ? $csrfFormulario : null);
+        }
         $usuario=Seguridad::usuario(false);
         if (!in_array($accion,['ingresar','unirse','estado','responder','respuestas','salir'],true)) $usuario=Seguridad::usuario();
         if (in_array($accion,['usuarios','crear-usuario','estado-usuario','eliminar-usuario','actualizar-cuenta','probar-motor'],true)) $usuario=Seguridad::administrador();
         if (!in_array($accion,['ingresar','salir','actualizar-cuenta'],true)) session_write_close();
-        $datos=[];
+        $datos=$metodo==='POST' ? $_POST : [];
+        unset($datos['csrf']);
         if ($metodo==='POST' && str_contains($_SERVER['CONTENT_TYPE']??'','application/json')) {
-            $cuerpo=file_get_contents('php://input');
-            if (strlen($cuerpo)>250000) throw new ErrorAplicacion('La solicitud es demasiado grande.',413);
-            try { $datos=json_decode($cuerpo,true,64,JSON_THROW_ON_ERROR); }
-            catch (\Throwable) { throw new ErrorAplicacion('La solicitud no contiene un JSON válido.',400); }
-            if (!is_array($datos)) throw new ErrorAplicacion('Revisa los datos enviados.',400);
+            $datos=leerJsonSolicitud(file_get_contents('php://input'));
+        } elseif ($accion==='guardar-material' && is_string($datos['preguntas']??null)) {
+            $datos['preguntas']=leerJsonSolicitud($datos['preguntas']);
         }
         $token=preg_replace('/^Bearer\s+/i','',$_SERVER['HTTP_AUTHORIZATION']??'');
         $resultado=match($accion) {
@@ -100,6 +122,18 @@ try {
     elseif ($ruta==='/ingreso') {
         $vista='ingreso';
         [$instalacionDisponible, $mensajeInstalacion] = Instalacion::prepararIngreso();
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$instalacionDisponible && http_response_code() !== 503) {
+            try {
+                $csrfFormulario = $_POST['csrf'] ?? '';
+                Seguridad::csrf(is_string($csrfFormulario) ? $csrfFormulario : '');
+                $resultado = Autenticacion::ingresar($_POST);
+                header('Location: ' . $resultado['destino'], true, 303);
+                exit;
+            } catch (ErrorAplicacion $error) {
+                http_response_code($error->estado);
+                $mensajeIngreso = $error->getMessage();
+            }
+        }
     }
     elseif ($ruta==='/crear_administrador.php') {
         $vista='ingreso';
