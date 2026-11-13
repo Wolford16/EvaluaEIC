@@ -9,10 +9,13 @@
   const cantidad=(numero,singular,plural)=>`${numero} ${Number(numero)===1?singular:plural}`;
   const accion=(nombre,id,texto,clase='suave')=>`<button class="boton ${clase} pequeno" data-accion="${nombre}" data-id="${e(id)}">${texto}</button>`;
   function enlacesInforme(codigo, participante=null) {
-    const alcance=participante===null?'':`/${participante}`;
-    const base=ruta(`/resultados/${encodeURIComponent(codigo)}${alcance}`);
-    return [['pdf','PDF'],['xlsx','Excel']].map(([extension,formato])=>
-      `<a class="boton suave pequeno" href="${e(`${base}.${extension}`)}" download>${i('documento')} Descargar ${formato}</a>`
+    const parametros = new URLSearchParams({informe_pdf: codigo});
+    if (participante !== null) parametros.set('participante', participante);
+    const alcance = participante === null ? '' : `/${participante}`;
+    const pdf = ruta(`/index.php?${parametros}`);
+    const excel = ruta(`/resultados/${encodeURIComponent(codigo)}${alcance}.xlsx`);
+    return [[pdf, 'PDF', ''], [excel, 'Excel', ' download']].map(([enlace, formato, atributo]) =>
+      `<a class="boton suave pequeno" href="${e(enlace)}"${atributo}>${i('documento')} Descargar ${formato}</a>`
     ).join('');
   }
   function rankingSala(s) {

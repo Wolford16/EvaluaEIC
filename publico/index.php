@@ -37,6 +37,15 @@ if ($ruta === '/index.php') {
     if (isset($_GET['api'])) $ruta = '/api/' . (is_string($_GET['api']) ? $_GET['api'] : '');
     elseif (($_GET['verificar_bd'] ?? null) === '1') $ruta = '/verificar_bd.php';
     elseif (($_GET['salir'] ?? null) === '1') $ruta = '/salir';
+    elseif (isset($_GET['informe_pdf'])) {
+        $codigoInforme = $_GET['informe_pdf'];
+        $participanteInforme = $_GET['participante'] ?? null;
+        $ruta = '/resultados/' . (is_string($codigoInforme) ? rawurlencode($codigoInforme) : '');
+        if ($participanteInforme !== null) {
+            $ruta .= '/' . (is_string($participanteInforme) ? rawurlencode($participanteInforme) : '');
+        }
+        $ruta .= '.pdf';
+    }
     elseif ($_SERVER['REQUEST_METHOD'] === 'POST') $ruta = '/ingreso';
 }
 $esApi = str_starts_with($ruta,'/api/');
