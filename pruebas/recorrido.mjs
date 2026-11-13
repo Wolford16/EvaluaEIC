@@ -197,6 +197,45 @@ try {
   }),'La mezcla conserva las opciones y su respuesta correcta');
   comprobar(sala.url===entorno.APLICACION_URL+'/sala/'+codigo && (await alumno.pagina(new URL(sala.url).pathname)).r.status===200,'El enlace de la sala usa la dirección configurada y abre la vista participante');
   comprobar((await otro.api('iniciar-sala',{codigo})).estadoHttp===403,'Solo el docente responsable inicia');
+  const {curso} = await docente.api('crear-curso', {nombre:'Curso reutilizable'});
+  const cursoRepetido = await otro.api('crear-curso', {nombre:'curso   reutilizable'});
+  comprobar(curso && cursoRepetido.curso.id === curso.id, 'El catálogo evita cursos duplicados');
+  comprobar((await docente.api('actualizar-curso-material', {id, compartido:1})).estadoHttp === 422,
+    'Compartir requiere asignar un curso');
+  comprobar((await otro.api('crear-sala', {documento_id:id, tiempo:15})).estadoHttp === 403,
+    'Un docente no puede aplicar un examen privado de otra cuenta');
+  comprobar((await docente.api('actualizar-curso-material', {id, curso_id:curso.id, compartido:1})).ok,
+    'El autor puede publicar un examen existente en un curso');
+  const bibliotecaCompartida = await otro.api('materiales');
+  const publicado = bibliotecaCompartida.documentos.find(d => Number(d.id) === id);
+  comprobar(publicado && publicado.curso === curso.nombre && !publicado.puede_gestionar,
+    'El examen compartido aparece en la biblioteca de otro docente');
+  const detalleCompartido = await otro.api(`material?id=${id}`);
+  comprobar(detalleCompartido.preguntas.length === originales.length && detalleCompartido.salas.length === 0
+    && (await otro.pagina(`/archivo/${id}`)).r.status === 200,
+    'Otro docente puede leer las preguntas y el PDF compartido, sin ver las salas del autor');
+  comprobar((await otro.api('eliminar-pregunta', {id:originales[0].id})).estadoHttp === 403 &&
+    (await otro.api('eliminar-material', {id})).estadoHttp === 403 &&
+    (await otro.api('actualizar-curso-material', {id, curso_id:curso.id})).estadoHttp === 403,
+    'El permiso de reutilizar no permite modificar el original');
+  const salaCompartida = await otro.api('crear-sala', {documento_id:id, tiempo:15});
+  comprobar(salaCompartida.ok && salaCompartida.codigo !== codigo &&
+    (await otro.api(`material?id=${id}`)).salas.every(s => s.codigo === salaCompartida.codigo) &&
+    (await docente.api(`estado?codigo=${salaCompartida.codigo}`)).anfitrion === false,
+    'Cada docente conserva su propia sala al aplicar el mismo examen');
+  const copiaPrivada = await otro.api('copiar-material', {id});
+  const detalleCopia = await otro.api(`material?id=${copiaPrivada.id}`);
+  comprobar(copiaPrivada.ok && detalleCopia.documento.puede_gestionar && Number(detalleCopia.documento.compartido) === 0 &&
+    detalleCopia.salas.length === 0 && detalleCopia.preguntas.length === originales.length &&
+    (await docente.pagina(`/archivo/${copiaPrivada.id}`)).r.status === 403,
+    'La copia incluye preguntas y PDF y queda privada para el nuevo propietario');
+  comprobar((await otro.api('eliminar-material', {id:copiaPrivada.id})).ok &&
+    (await docente.pagina(`/archivo/${id}`)).r.status === 200,
+    'Eliminar la copia privada conserva el PDF original');
+  comprobar((await docente.api('actualizar-curso-material', {id, curso_id:curso.id, compartido:0})).ok &&
+    (await otro.api(`material?id=${id}`)).estadoHttp === 403 &&
+    (await otro.api(`estado?codigo=${salaCompartida.codigo}`)).anfitrion === true,
+    'Retirar el examen de la biblioteca conserva las salas que ya se crearon');
   comprobar(!(await docente.api('iniciar-sala',{codigo})).ok,'No inicia una sala vacía');
   const entrada=await alumno.api('unirse',{codigo,nombre:'Participante de prueba',avatar:23});comprobar(entrada.ok,'Registro sin cuenta con un avatar nuevo');const token=entrada.token;
   const segundo=await alumno.api('unirse',{codigo,nombre:'Sin respuestas',avatar:2});comprobar(segundo.ok,'Segundo participante');
@@ -427,6 +466,157 @@ try {
   const nuevoDocente=new Cliente();
   await nuevoDocente.ingresar('docente','OtroDocente2026!');
   comprobar((await nuevoDocente.api('materiales')).documentos.length===0 && (await nuevoDocente.api(peticionHistorial)).estadoHttp===403,'Reutilizar el usuario no transfiere documentos ni evaluaciones');
+
+  const manual = {
+    token: randomBytes(24).toString('hex'), curso_id: curso.id, compartido: 1, titulo: 'Examen de tres tipos',
+    preguntas: [
+      {tipo:'opcion_multiple', enunciado:'¿Cuál es un número par?', opciones:['1','2','3','5'], correcta:1},
+      {tipo:'verdadero_falso', enunciado:'El agua es una sustancia.', correcta:0},
+      {tipo:'completacion', enunciado:'Escribe el resultado de seis más seis.', respuestas_aceptadas:['doce','12']},
+    ],
+  };
+  const incompleto = {...manual, preguntas:[{...manual.preguntas[2], respuestas_aceptadas:['doce',' DOCE ']}]};
+  comprobar((await admin.api('crear-examen-manual', incompleto)).estadoHttp===422, 'Rechaza variantes equivalentes en completación');
+  const examenManual = await admin.api('crear-examen-manual', manual);
+  const manualId = examenManual.id;
+  comprobar(examenManual.ok && (await admin.api('crear-examen-manual', manual)).id === manualId &&
+    (await admin.pagina(`/archivo/${manualId}`)).r.status === 404,
+    'Crea un examen sin PDF ni OpenRouter y guarda una sola copia al reintentar');
+  const copiaManual = await nuevoDocente.api('copiar-material', {id:manualId});
+  const preguntasCopia = (await nuevoDocente.api(`material?id=${copiaManual.id}`)).preguntas;
+  comprobar(copiaManual.ok && preguntasCopia.length === 3 && preguntasCopia[2].respuestas_aceptadas.join(',') === 'doce,12',
+    'Copiar un examen manual compartido conserva sus tipos y respuestas aceptadas');
+  comprobar((await nuevoDocente.api('editar-examen-manual', {...manual,id:manualId})).estadoHttp === 403 &&
+    (await nuevoDocente.api('editar-examen-manual', {...manual,id:copiaManual.id,compartido:0})).ok,
+    'Solo el responsable puede editar el examen manual o su propia copia');
+  const salaManual = await nuevoDocente.api('crear-sala', {documento_id:copiaManual.id,tiempo:15});
+  const codigoManual = salaManual.codigo;
+  const congeladas = leerCopia(codigoManual);
+  comprobar(congeladas.length === 3 && congeladas.some(p => p.tipo === 'verdadero_falso' && p.opciones.join(',') === 'Verdadero,Falso'),
+    'Una sala admite preguntas mixtas y conserva el orden de verdadero o falso');
+  const editadas = manual.preguntas.map(p => p.tipo === 'completacion' ? {...p,respuestas_aceptadas:['diferente']} : p);
+  comprobar((await nuevoDocente.api('editar-examen-manual', {...manual,id:copiaManual.id,compartido:0,preguntas:editadas})).ok &&
+    JSON.stringify(leerCopia(codigoManual)) === JSON.stringify(congeladas),
+    'Editar el banco manual conserva las preguntas de las salas ya creadas');
+  const personaManual = await alumno.api('unirse',{codigo:codigoManual,nombre:'Participante manual',avatar:1});
+  const personaFallos = await alumno.api('unirse',{codigo:codigoManual,nombre:'Prueba de faltas',avatar:0});
+  comprobar(personaManual.ok && personaFallos.ok && (await nuevoDocente.api('iniciar-sala',{codigo:codigoManual})).ok,
+    'Abre una sala para un examen manual reutilizado');
+  const indiceTexto = congeladas.findIndex(p => p.tipo === 'completacion');
+  for (const [indice,pregunta] of congeladas.entries()) {
+    ejecutarPhp(`EvaluaEIC\\Servicios\\BaseDatos::ejecutar('UPDATE salas_evaluacion SET inicio=? WHERE codigo=?',[microtime(true)-${indice*19+1},'${codigoManual}']);`);
+    const vistaManual = await alumno.api(`estado?codigo=${codigoManual}`,null,personaManual.token);
+    comprobar(vistaManual.fase === 'pregunta' && !('respuestas_aceptadas' in vistaManual.pregunta) &&
+      !('correcta' in vistaManual.pregunta), 'La sala protege las soluciones durante la pregunta');
+    const respuesta = indice === indiceTexto ? {texto:'  DOCE  '} : {opcion:pregunta.correcta};
+    comprobar((await alumno.api('responder',{codigo:codigoManual,indice,...respuesta},personaManual.token)).ok,
+      'La sala acepta la respuesta del tipo correcto');
+    if (indice === indiceTexto) {
+      comprobar((await alumno.api('responder',{codigo:codigoManual,indice,texto:'  '},personaFallos.token)).estadoHttp === 422 &&
+        (await alumno.api('responder',{codigo:codigoManual,indice,texto:'Once'},personaFallos.token)).ok &&
+        (await alumno.api('responder',{codigo:codigoManual,indice,texto:'12'},personaFallos.token)).estadoHttp === 409,
+        'Valida el texto, registra el error y bloquea el segundo envío');
+      comprobar((await nuevoDocente.api(`estado?codigo=${codigoManual}`)).respondieron === 2, 'Las respuestas de texto cuentan como respondidas');
+    }
+  }
+  ejecutarPhp(`EvaluaEIC\\Servicios\\BaseDatos::ejecutar('UPDATE salas_evaluacion SET inicio=? WHERE codigo=?',[microtime(true)-60,'${codigoManual}']);`);
+  const resultadosManual = await alumno.api(`estado?codigo=${codigoManual}`,null,personaManual.token);
+  const respuestasManual = await alumno.api(`respuestas?codigo=${codigoManual}`,null,personaManual.token);
+  const respuestaManual = respuestasManual.preguntas[indiceTexto];
+  comprobar(resultadosManual.participante.aciertos === 3 && respuestaManual.elegida === 'DOCE' && respuestaManual.acierto &&
+    respuestaManual.respuestas_aceptadas.includes('doce'), 'Normaliza el texto y conserva la respuesta escrita en el historial');
+  const resumenManual = JSON.parse(ejecutarPhp(`echo json_encode(EvaluaEIC\\Servicios\\Evaluacion::resultadosInforme('${codigoManual}',['rol'=>'admin'])['filas']);`));
+  const erroresManuales = resumenManual.find(fila => fila.nombre === 'Prueba de faltas');
+  comprobar(erroresManuales.incorrectas === 1 && erroresManuales.sin_responder === 2,
+    'El informe distingue una completación incorrecta de las preguntas sin responder');
+  const informeManual = await nuevoDocente.descargar(`/index.php?informe_pdf=${codigoManual}&participante=${resultadosManual.participante.id}`);
+  const excelManual = await nuevoDocente.descargar(`/resultados/${codigoManual}/${resultadosManual.participante.id}.xlsx`);
+  comprobar(informeManual.r.ok && informeManual.contenido.subarray(0,5).toString() === '%PDF-' &&
+    excelManual.r.ok && excelManual.contenido.readUInt32LE(0) === 0x04034b50,
+    'El examen mixto se puede descargar en PDF y Excel');
+  writeFileSync(archivoInforme, informeManual.contenido);
+  const textoManual = ejecutarPhp(`echo (new Smalot\\PdfParser\\Parser())->parseFile(base64_decode('${rutaCodificada}'))->getText();`);
+  comprobar(textoManual.includes('DOCE') && textoManual.includes('doce / 12'),
+    'La ficha PDF contiene la respuesta escrita y sus variantes aceptadas');
+
+  const entradaCurso = await nuevoDocente.api('crear-sala', {documento_id:copiaManual.id, tiempo:20, entrada:1});
+  const codigoEntrada = entradaCurso.codigo;
+  comprobar(entradaCurso.ok && (await nuevoDocente.api('crear-salida',{codigo:codigoEntrada})).estadoHttp === 409 &&
+    (await otro.api('crear-salida',{codigo:codigoEntrada})).estadoHttp === 403,
+    'Solo el responsable puede abrir la salida de una entrada finalizada');
+  const primeraEntrada = await alumno.api('unirse',{codigo:codigoEntrada,nombre:'Mismo nombre',avatar:1});
+  const segundaEntrada = await alumno.api('unirse',{codigo:codigoEntrada,nombre:'Mismo nombre',avatar:2});
+  const codigoPrivado = async persona => (await alumno.api(`estado?codigo=${codigoEntrada}`,null,persona.token)).codigo_personal;
+  const personal = await codigoPrivado(primeraEntrada);
+  comprobar(/^[0-9A-F]{16}$/.test(personal) && personal !== await codigoPrivado(segundaEntrada) &&
+    !('codigo_personal' in await nuevoDocente.api(`estado?codigo=${codigoEntrada}`)),
+    'Cada participante recibe un código personal aunque comparta nombre, y el código se entrega solo a su sesión');
+  comprobar((await nuevoDocente.api('iniciar-sala',{codigo:codigoEntrada})).ok, 'Se puede iniciar la etapa de entrada');
+  const situarEtapa = (codigoSala, segundos) => ejecutarPhp(
+    `EvaluaEIC\\Servicios\\BaseDatos::ejecutar('UPDATE salas_evaluacion SET inicio=? WHERE codigo=?',[microtime(true)-${segundos},'${codigoSala}']);`);
+  situarEtapa(codigoEntrada, 74);
+  comprobar((await nuevoDocente.api(`comparacion?codigo=${codigoEntrada}`)).estadoHttp === 409,
+    'La comparación espera la salida');
+  const versionEntrada = leerCopia(codigoEntrada);
+  comprobar((await nuevoDocente.api('editar-examen-manual', {...manual,id:copiaManual.id,compartido:0,preguntas:manual.preguntas.slice(0,1)})).ok,
+    'El banco puede cambiar entre las dos etapas');
+  const [salidaCurso, repetida] = await Promise.all([
+    nuevoDocente.api('crear-salida',{codigo:codigoEntrada}), nuevoDocente.api('crear-salida',{codigo:codigoEntrada}),
+  ]);
+  const codigoSalida = salidaCurso.codigo;
+  const vistaSalida = await alumno.api(`estado?codigo=${codigoSalida}`);
+  comprobar(salidaCurso.ok && repetida.codigo === codigoSalida && JSON.stringify(leerCopia(codigoSalida)) === JSON.stringify(versionEntrada) &&
+    vistaSalida.etapa === 'Salida' && vistaSalida.tiempo === 20,
+    'La salida reutiliza la copia y el tiempo de la entrada, incluso con dos solicitudes simultáneas');
+  comprobar((await alumno.api('unirse',{codigo:codigoSalida,nombre:'Mismo nombre'})).estadoHttp === 422 &&
+    (await alumno.api('unirse',{codigo:codigoSalida,codigo_personal:'FFFFFFFFFFFFFFFF'})).estadoHttp === 422,
+    'La salida distingue el código inválido de la inscripción explícita sin entrada');
+  const vinculada = await alumno.api('unirse',{codigo:codigoSalida,codigo_personal:personal.match(/.{1,4}/g).join('-').toLowerCase()});
+  const sinEntrada = await alumno.api('unirse',{codigo:codigoSalida,nombre:'Solo salida',solo_salida:1});
+  comprobar(vinculada.ok && sinEntrada.ok && (await alumno.api('unirse',{codigo:codigoSalida,codigo_personal:personal})).estadoHttp === 409,
+    'La salida permite vincular el código una vez y registrar a quienes solo cursan esa etapa');
+  comprobar((await nuevoDocente.api('iniciar-sala',{codigo:codigoSalida})).ok, 'Se puede iniciar la etapa de salida');
+  for (const [indice, pregunta] of versionEntrada.entries()) {
+    situarEtapa(codigoSalida, indice * 24 + 1);
+    const respuesta = pregunta.tipo === 'completacion' ? {texto:pregunta.respuestas_aceptadas[0]} : {opcion:pregunta.correcta};
+    comprobar((await alumno.api('responder',{codigo:codigoSalida,indice,...respuesta},vinculada.token)).ok,
+      'Se registran las respuestas de salida con la copia original');
+  }
+  situarEtapa(codigoSalida, 74);
+  const enlaceComparacion = `/index.php?comparacion=${codigoEntrada}`;
+  const informeComparado = await nuevoDocente.api(`comparacion?codigo=${codigoEntrada}`);
+  const personas = informeComparado.participantes;
+  comprobar(personas.length === 3 && personas[0].diferencia === 100 && personas[1].nombre === personas[0].nombre &&
+    personas[1].salida === null && personas[1].diferencia === null && personas[2].entrada === null,
+    'La comparación vincula por código y separa pendientes de un resultado de cero');
+  comprobar((await otro.descargar(enlaceComparacion)).r.status === 403 &&
+    (await alumno.descargar(enlaceComparacion)).r.status === 401 &&
+    (await nuevoDocente.descargar(enlaceComparacion+'&participante=999999')).r.status === 404,
+    'La comparación está restringida al responsable y a participantes de esas salas');
+  for (const [etapa,codigoEtapa] of [['Entrada',codigoEntrada],['Salida',codigoSalida]]) {
+    const listado = await nuevoDocente.descargar(`/index.php?informe_pdf=${codigoEtapa}`);
+    const hoja = await nuevoDocente.descargar(`/resultados/${codigoEtapa}.xlsx`);
+    comprobar(listado.r.ok && listado.contenido.subarray(0,5).toString() === '%PDF-' && hoja.r.ok &&
+      hoja.contenido.readUInt32LE(0) === 0x04034b50, `Se descargan los resultados de ${etapa} en PDF y Excel`);
+    writeFileSync(archivoInforme,listado.contenido);
+    const textoEtapa = ejecutarPhp(`echo (new Smalot\\PdfParser\\Parser())->parseFile(base64_decode('${rutaCodificada}'))->getText();`);
+    comprobar(textoEtapa.includes(etapa) && textoEtapa.includes('Resultados por pregunta'), `El informe grupal de ${etapa} incluye el detalle por pregunta`);
+    const idEtapa = etapa === 'Entrada' ? personas[0].id :
+      (await alumno.api(`estado?codigo=${codigoSalida}`,null,vinculada.token)).participante.id;
+    const fichaEtapa = await nuevoDocente.descargar(`/index.php?informe_pdf=${codigoEtapa}&participante=${idEtapa}`);
+    const excelEtapa = await nuevoDocente.descargar(`/resultados/${codigoEtapa}/${idEtapa}.xlsx`);
+    comprobar(fichaEtapa.r.ok && fichaEtapa.contenido.subarray(0,5).toString() === '%PDF-' && excelEtapa.r.ok &&
+      excelEtapa.contenido.readUInt32LE(0) === 0x04034b50, `Se descarga la ficha individual de ${etapa} en PDF y Excel`);
+  }
+  for (const [filtro, esperado] of [['', 'Aciertos por pregunta'],[`&participante=${personas[0].id}`,'Sin responder']]) {
+    const pdf = await nuevoDocente.descargar(enlaceComparacion + filtro);
+    const xlsx = await nuevoDocente.descargar(enlaceComparacion + '&formato=xlsx' + filtro);
+    comprobar(pdf.r.ok && pdf.contenido.subarray(0,5).toString() === '%PDF-' &&
+      xlsx.r.ok && xlsx.contenido.readUInt32LE(0) === 0x04034b50, 'Se descarga la comparación en PDF y Excel');
+    writeFileSync(archivoInforme,pdf.contenido);
+    const texto = ejecutarPhp(`echo (new Smalot\\PdfParser\\Parser())->parseFile(base64_decode('${rutaCodificada}'))->getText();`);
+    comprobar(texto.includes(esperado) && texto.includes('+100 pp'), 'El PDF comparativo incluye el cambio y el detalle correspondiente');
+  }
 
   await admin.api('eliminar-material',{id});comprobar((await alumno.api(`estado?codigo=${codigo}`,null,token)).ranking[0].porcentaje===100,'Eliminar material conserva historial');
   comprobar((await admin.api(peticionHistorial)).preguntas.length===2,'El historial de respuestas sobrevive a la eliminación del material');

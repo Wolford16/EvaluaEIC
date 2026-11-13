@@ -21,6 +21,14 @@ El SQL crea las tablas para una instalación nueva. Para llevar registros de SQL
 
 Extrae el ZIP y actualiza los archivos de la aplicación. Conserva la base MySQL, el directorio `almacenamiento` y los datos de tu `configuracion/servidor.php`. El archivo `servidor.php` de la raíz se usa al ejecutar el servidor integrado de PHP.
 
+Para incorporar la biblioteca de exámenes por curso en una instalación existente, exporta primero un respaldo de la base desde phpMyAdmin. Selecciona esa misma base e importa `database/actualizar_evaluaeic.sql` antes de reemplazar el código. El SQL agrega la tabla de cursos y los campos de curso y visibilidad. Se puede volver a importar si la actualización se interrumpe. Para una instalación nueva se usa `database/instalar_evaluaeic.sql`.
+
+Los materiales existentes aparecen como **Sin curso** y permanecen privados. Desde **Curso y visibilidad**, el responsable o un administrador puede asignar un curso y compartir el examen. Los docentes pueden filtrar por curso, aplicar los exámenes compartidos en su propia sala o guardar una copia privada.
+
+El mismo SQL de actualización incorpora el editor manual y las respuestas de completación. En el panel docente, **Crear manualmente** permite combinar opción múltiple, verdadero o falso y completación. Para una respuesta de texto se admiten hasta diez variantes. La calificación compara el texto con esas variantes e ignora mayúsculas y espacios adicionales.
+
+El SQL acumulativo también incorpora **Entrada y salida**. En **Crear sala**, el docente elige esa aplicación si desea comparar dos etapas. Al finalizar la entrada, **Aplicar salida** abre una segunda sala con la misma copia del examen y el mismo tiempo. Cada participante guarda el código personal que aparece en su pantalla de entrada y lo usa para vincular su resultado de salida. Quienes solo cursan una etapa aparecen con la otra pendiente. Al finalizar ambas salas se pueden descargar los informes de cada etapa y la comparación en PDF o Excel, en versión grupal e individual.
+
 ## Límites y errores de OpenRouter
 
 `configuracion/openrouter.php` centraliza el presupuesto por solicitud, la cantidad por lote, la cantidad máxima de llamadas y el tiempo total. El modelo informa su ventana de contexto y su capacidad máxima de salida; el generador adapta los lotes y divide el texto cuando lo necesita. Las cuotas reales de la cuenta pueden ser menores y requerir ajustar ese presupuesto.

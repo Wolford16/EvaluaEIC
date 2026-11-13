@@ -191,6 +191,10 @@ svg.icono {
 .explicacion { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; color: #526e87; background: #f0f7fb; padding: 12px; border-radius: 8px; margin: 14px 0 0; line-height: 1.65; }
 .explicacion .icono { width: 15px; height: 15px; margin-top: 2px; }
 .selector-historial { max-width: 390px; margin-bottom: 24px; }
+.campo-compartir { flex-direction: row; align-items: center; gap: 9px; }
+.campo-compartir input { margin: 0; accent-color: var(--eic-marino); }
+.codigo-seguimiento { display: grid; gap: 8px; justify-items: center; margin: 18px auto; padding: 14px; border: 1px solid var(--borde); border-radius: 12px; background: #f5fbfe; color: var(--eic-marino); }
+.codigo-seguimiento code { font-size: 16px; font-weight: 700; user-select: all; }
 .lista-participantes { display: flex; flex-direction: column; gap: 8px; max-height: 280px; overflow: auto; }
 .participante-fila { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid #e6edf3; border-radius: 10px; font-size: 12px; }
 .participante-fila strong { overflow-wrap: anywhere; }
@@ -283,7 +287,7 @@ svg.icono {
 /* Formularios y administración. */
 .formulario { display: flex; flex-direction: column; gap: 20px; }
 label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; font-weight: 700; color: #344f6b; }
-input:not([type=radio]):not([type=file]):not([type=range]), select, textarea {
+input:not([type=radio]):not([type=file]):not([type=range]):not([type=checkbox]), select, textarea {
   width: 100%; min-width: 0; min-height: 44px; border: 1px solid #cfdce7; background: #fff;
   color: var(--tinta); padding: 12px 13px; border-radius: 9px; font-size: 13px;
 }
@@ -360,6 +364,10 @@ dialog::backdrop { background: #021a3ab8; backdrop-filter: blur(3px); }
 .acciones-dialogo .boton, .acciones-sala .boton { min-height: 44px; white-space: normal; }
 .pregunta-revision { border: 1px solid var(--borde); border-radius: 12px; padding: 20px; margin-bottom: 18px; display: flex; flex-direction: column; gap: 15px; }
 .pregunta-revision .sobrelinea { margin: 0; }
+.titulo-pregunta-manual { margin: 0; font-size: 15px; }
+.pregunta-manual fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.pregunta-manual legend { margin-bottom: 10px; font-size: 12px; font-weight: 700; }
+.pregunta-manual small { display: block; margin-top: 6px; }
 .resumen-revision { margin: 0 0 18px; }
 .resumen-revision strong, .resumen-revision span { display: block; }
 .resumen-revision strong { color: var(--eic-marino); margin-bottom: 3px; }
@@ -493,6 +501,9 @@ dialog::backdrop { background: #021a3ab8; backdrop-filter: blur(3px); }
 .enunciado-examen > .sobrelinea { font-size: 11px; color: #627f98; max-width: 700px; margin: 0 auto 16px; letter-spacing: .03em; }
 .enunciado-examen h1 { font-size: 27px; line-height: 1.5; max-width: 790px; margin: auto; }
 .opciones-examen { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.respuesta-completacion { max-width: 620px; margin: 0 auto; padding: 20px; border: 1px solid var(--borde); border-radius: 12px; background: #fff; overflow-wrap: anywhere; }
+.respuesta-completacion button { align-self: flex-start; }
+.respuesta-completacion p:last-child { margin-bottom: 0; }
 .respuesta-examen { min-height: 118px; border: 2px solid transparent; border-radius: 14px; display: flex; align-items: center; gap: 16px; text-align: left; padding: 20px 22px; color: var(--eic-marino); font-size: 14px; font-weight: 700; line-height: 1.6; box-shadow: 0 3px 0 #042b6012; transition: transform .15s, filter .15s; }
 .respuesta-examen:not(:disabled):hover { transform: translateY(-2px); filter: brightness(1.03); }
 .respuesta-examen.marino { background: var(--eic-marino); color: #fff; }

@@ -33,7 +33,13 @@ try {
 try {
     $pdo->query('SELECT id, nombre, usuario, clave_hash, rol, estado, creado_en FROM usuarios WHERE 1 = 0');
     $pdo->query('SELECT nombre, valor FROM configuraciones WHERE 1 = 0');
-    $tablas = ['documentos', 'preguntas', 'salas_evaluacion', 'participantes', 'respuestas_participantes', 'borradores', 'intentos_acceso'];
+    $pdo->query('SELECT curso_id, compartido, token_manual FROM documentos WHERE 1 = 0');
+    $pdo->query('SELECT id, nombre FROM cursos WHERE 1 = 0');
+    $pdo->query('SELECT tipo, respuestas_aceptadas_json FROM preguntas WHERE 1 = 0');
+    $pdo->query('SELECT texto FROM respuestas_participantes WHERE 1 = 0');
+    $pdo->query('SELECT es_entrada, entrada_id FROM salas_evaluacion WHERE 1 = 0');
+    $pdo->query('SELECT codigo_seguimiento_hash, participante_entrada_id FROM participantes WHERE 1 = 0');
+    $tablas = ['borradores', 'intentos_acceso'];
     foreach ($tablas as $tabla) {
         $pdo->query("SELECT 1 FROM {$tabla} WHERE 1 = 0");
     }

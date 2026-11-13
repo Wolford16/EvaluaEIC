@@ -3,11 +3,11 @@ declare(strict_types=1);
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 require dirname(__DIR__) . '/configuracion/aplicacion.php';
-use EvaluaEIC\Servicios\{Seguridad, BaseDatos, Evaluacion, InteligenciaArtificial, ErrorAplicacion};
-use EvaluaEIC\Controladores\{Autenticacion, Materiales, Salas, Administracion, Instalacion};
+use EvaluaEIC\Servicios\{Seguridad, BaseDatos, Evaluacion, InteligenciaArtificial, ErrorAplicacion, Comparacion};
+use EvaluaEIC\Controladores\{Autenticacion, Materiales, Salas, Administracion, Instalacion, Cursos};
 
-function leerJsonSolicitud(string $cuerpo): array {
-    if (strlen($cuerpo)>250000) throw new ErrorAplicacion('La solicitud es demasiado grande.',413);
+function leerJsonSolicitud(string $cuerpo, int $limite = 250000): array {
+    if (strlen($cuerpo)>$limite) throw new ErrorAplicacion('La solicitud es demasiado grande.',413);
     try { $datos=json_decode($cuerpo,true,64,JSON_THROW_ON_ERROR); }
     catch (JsonException) { throw new ErrorAplicacion('La solicitud no contiene un JSON válido.',400); }
     if (!is_array($datos)) throw new ErrorAplicacion('Revisa los datos enviados.',400);
@@ -37,6 +37,7 @@ if ($ruta === '/index.php') {
     if (isset($_GET['api'])) $ruta = '/api/' . (is_string($_GET['api']) ? $_GET['api'] : '');
     elseif (($_GET['verificar_bd'] ?? null) === '1') $ruta = '/verificar_bd.php';
     elseif (($_GET['salir'] ?? null) === '1') $ruta = '/salir';
+    elseif (isset($_GET['comparacion'])) $ruta = '/comparacion';
     elseif (isset($_GET['informe_pdf'])) {
         $codigoInforme = $_GET['informe_pdf'];
         $participanteInforme = $_GET['participante'] ?? null;
@@ -65,7 +66,7 @@ try {
     if ($esApi) {
         header('Content-Type: application/json; charset=utf-8');
         $accion=substr($ruta,5); $metodo=$_SERVER['REQUEST_METHOD'];
-        $lecturas=['materiales','material','usuarios','motores','salas','estado','respuestas'];
+        $lecturas=['materiales','material','usuarios','motores','salas','estado','respuestas','comparacion'];
         $esLectura=in_array($accion,$lecturas,true);
         if ($metodo!==($esLectura?'GET':'POST')) throw new ErrorAplicacion('Método no permitido.',405);
         if (!$esLectura) {
@@ -78,21 +79,32 @@ try {
         if (!in_array($accion,['ingresar','salir','actualizar-cuenta'],true)) session_write_close();
         $datos=$metodo==='POST' ? $_POST : [];
         unset($datos['csrf']);
+        $esExamenManual = in_array($accion, ['crear-examen-manual', 'editar-examen-manual'], true);
+        $limiteJson = $esExamenManual ? 2400000 : 250000;
         if ($metodo==='POST' && str_contains($_SERVER['CONTENT_TYPE']??'','application/json')) {
-            $datos=leerJsonSolicitud(file_get_contents('php://input'));
-        } elseif ($accion==='guardar-material' && is_string($datos['preguntas']??null)) {
-            $datos['preguntas']=leerJsonSolicitud($datos['preguntas']);
+            $datos=leerJsonSolicitud(file_get_contents('php://input'), $limiteJson);
+        } elseif (($esExamenManual || $accion === 'guardar-material') && is_string($datos['preguntas'] ?? null)) {
+            $datos['preguntas']=leerJsonSolicitud($datos['preguntas'], $limiteJson);
         }
         $token=preg_replace('/^Bearer\s+/i','',$_SERVER['HTTP_AUTHORIZATION']??'');
         $resultado=match($accion) {
             'ingresar'=>Autenticacion::ingresar($datos), 'salir'=>Autenticacion::salir(),
             'materiales'=>Materiales::listar($usuario),
             'material'=>Materiales::detalle(Seguridad::entero($_GET['id']??null,1,PHP_INT_MAX,'material'),$usuario),
+            'crear-curso'=>Cursos::crear($datos),
+            'actualizar-curso-material'=>Materiales::actualizarCurso(Seguridad::entero($datos['id']??null,1,PHP_INT_MAX,'material'),$datos,$usuario),
+            'copiar-material'=>Materiales::copiar(Seguridad::entero($datos['id']??null,1,PHP_INT_MAX,'material'),$usuario),
+            'crear-examen-manual'=>Materiales::crearManual($datos,$usuario),
+            'editar-examen-manual'=>Materiales::editarManual(Seguridad::entero($datos['id']??null,1,PHP_INT_MAX,'material'),$datos,$usuario),
             'preparar-material'=>Materiales::preparar($usuario), 'guardar-material'=>Materiales::guardar($datos,$usuario),
             'descartar-borrador'=>Materiales::descartar($datos,$usuario),
             'eliminar-material'=>Materiales::eliminar(Seguridad::entero($datos['id']??null,1,PHP_INT_MAX,'material'),$usuario),
             'eliminar-pregunta'=>Materiales::eliminarPregunta(Seguridad::entero($datos['id']??null,1,PHP_INT_MAX,'pregunta'),$usuario),
             'crear-sala'=>Salas::crear($datos,$usuario), 'iniciar-sala'=>Salas::iniciar($datos,$usuario),
+            'crear-salida'=>Salas::crearSalida($datos,$usuario),
+            'comparacion'=>['participantes'=>Comparacion::resultados(
+                mb_strtoupper(Seguridad::texto($_GET['codigo']??'',4,12,'Código de entrada')), $usuario
+            )['participantes']],
             'salas'=>Salas::listar($usuario), 'unirse'=>Evaluacion::unirse($datos), 'responder'=>Evaluacion::responder($datos,$token),
             'estado'=>Evaluacion::estado(mb_strtoupper((string)($_GET['codigo']??'')),$usuario,$token),
             'respuestas'=>Salas::respuestas($_GET,$usuario,$token),
@@ -107,6 +119,17 @@ try {
         echo json_seguro(['ok'=>true]+$resultado); exit;
     }
     $usuario=Seguridad::usuario(false);
+    if ($ruta === '/comparacion') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'GET') throw new ErrorAplicacion('Método no permitido.', 405);
+        $responsable = $usuario ?? Seguridad::usuario();
+        $codigoEntrada = mb_strtoupper(Seguridad::texto($_GET['comparacion'], 4, 12, 'Código de entrada'));
+        $formato = $_GET['formato'] ?? 'pdf';
+        if (!in_array($formato, ['pdf', 'xlsx'], true)) throw new ErrorAplicacion('Selecciona PDF o Excel.');
+        $participante = isset($_GET['participante']) ? Seguridad::entero($_GET['participante'], 1, PHP_INT_MAX, 'Participante') : null;
+        session_write_close();
+        Salas::descargarComparacion($codigoEntrada, $responsable, $formato, $participante);
+        exit;
+    }
     if ($ruta==='/' || $ruta==='/index.php') { header('Location: '.ruta_app($usuario ? ($usuario['rol']==='admin'?'/admin':'/docente') : '/ingreso')); exit; }
     if (preg_match('#^/resultados/([A-Za-z0-9-]{4,12})(?:/([1-9][0-9]*))?\.(pdf|xlsx)$#D', $ruta, $coincidencias)) {
         if ($_SERVER['REQUEST_METHOD'] !== 'GET') throw new ErrorAplicacion('Método no permitido.', 405);
@@ -117,7 +140,8 @@ try {
         exit;
     }
     if (preg_match('#^/archivo/(\d+)$#',$ruta,$coincidencias)) {
-        $documento=Seguridad::documento((int)$coincidencias[1],Seguridad::usuario());
+        $documento = Seguridad::documento((int) $coincidencias[1], Seguridad::usuario(), permitirCompartido: true);
+        if ($documento['ruta_archivo'] === null) throw new ErrorAplicacion('Este examen no tiene un PDF adjunto.', 404);
         $archivo=RAIZ.'/almacenamiento/documentos/'.$documento['ruta_archivo'];
         if (!is_file($archivo)) throw new ErrorAplicacion('El archivo no está disponible.',404);
         session_write_close();

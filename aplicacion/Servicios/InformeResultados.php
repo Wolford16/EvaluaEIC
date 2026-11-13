@@ -39,11 +39,15 @@ final class InformeResultados extends \tFPDF {
         $pdf->SetLineWidth(0.5);
         $pdf->SetTitle($datos['titulo'], true);
         $pdf->prepararFuente();
+        if (isset($datos['codigo_salida'])) {
+            foreach ($datos['tablas'] as $indice => $tabla) $pdf->tablaAdicional($datos, $tabla, $indice === 0);
+            return $pdf->Output('S');
+        }
         $pdf->pagina($datos, true);
 
         if ($individual) {
             foreach ($datos['filas'] as $fila) {
-                $pdf->filaIndividual($datos, $fila);
+                $pdf->filaDetallada(array_values($fila), self::COLUMNAS_INDIVIDUALES, fn() => $pdf->pagina($datos, false));
             }
             return $pdf->Output('S');
         }
@@ -61,6 +65,7 @@ final class InformeResultados extends \tFPDF {
             $pdf->fila($nombre, $alto, $fila);
         }
         $pdf->firma($datos['docente']);
+        foreach ($datos['tablas'] ?? [] as $tabla) $pdf->tablaAdicional($datos, $tabla, false);
         return $pdf->Output('S');
     }
 
@@ -77,7 +82,7 @@ final class InformeResultados extends \tFPDF {
         $this->AddFont('Informe', 'B', $usaTimes ? 'timesbd.ttf' : 'LiberationSerif-Bold.ttf', true);
     }
 
-    private function pagina(array $datos, bool $primera): void {
+    private function encabezado(array $datos, bool $primera): void {
         $this->AddPage();
         $individual = isset($datos['participante']);
         if ($primera) {
@@ -92,21 +97,44 @@ final class InformeResultados extends \tFPDF {
         $this->SetFont('Informe', 'B', 12);
         $this->Cell(0, 16, self::ENCABEZADO[4], 0, 1, 'C');
         $this->Ln($individual ? 7 : 12);
-        $this->Cell(0, 16, $individual ? 'FICHA INDIVIDUAL DE RESPUESTAS' : 'RESULTADOS DE LA EVALUACIÓN', 0, 1, 'C');
+        $titulo = isset($datos['codigo_salida']) ? 'COMPARACIÓN DE ENTRADA Y SALIDA'
+            : ($individual ? 'FICHA INDIVIDUAL DE RESPUESTAS' : 'RESULTADOS DE LA EVALUACIÓN');
+        $this->Cell(0, 16, $titulo, 0, 1, 'C');
         $this->MultiCell(0, 16, $datos['titulo'], 0, 'C');
         $this->SetFont('Informe', '', 12);
         if ($individual) $this->MultiCell(0, 16, 'Participante: ' . $datos['participante'], 0, 'C');
-        $this->Cell(0, 16, 'Sala ' . $datos['codigo'], 0, 1, 'C');
+        $salas = isset($datos['codigo_salida']) ? 'Entrada ' . $datos['codigo'] . ' / Salida ' . $datos['codigo_salida']
+            : 'Sala ' . $datos['codigo'] . (isset($datos['etapa']) ? ' / ' . $datos['etapa'] : '');
+        $this->Cell(0, 16, $salas, 0, 1, 'C');
         $this->Ln($individual ? 7 : 12);
-
+    }
+    private function pagina(array $datos, bool $primera): void {
+        $this->encabezado($datos, $primera);
+        $this->cabeceraTabla(isset($datos['participante']) ? self::COLUMNAS_INDIVIDUALES : self::COLUMNAS);
+    }
+    private function cabeceraTabla(array $columnas): void {
         $this->SetFont('Informe', 'B', 12);
         $this->SetFillColor(232, 238, 245);
-        $columnas = $individual ? self::COLUMNAS_INDIVIDUALES : self::COLUMNAS;
         foreach ($columnas as $titulo => $ancho) {
             $this->Cell($ancho, 23, $titulo, 1, 0, 'C', true);
         }
         $this->Ln();
         $this->SetFont('Informe', '', 12);
+    }
+
+    private function tablaAdicional(array $datos, array $tabla, bool $primera): void {
+        $abrirPagina = function (bool $portada = false) use ($datos, $tabla): void {
+            $this->encabezado($datos, $portada);
+            if ($portada) {
+                foreach ($datos['resumen'] ?? [] as $linea) $this->MultiCell(0, 15, $linea);
+                $this->Ln(7);
+            }
+            $this->SetFont('Informe', 'B', 12);
+            $this->MultiCell(0, 16, $tabla['titulo']);
+            $this->cabeceraTabla($tabla['columnas']);
+        };
+        $abrirPagina($primera);
+        foreach ($tabla['filas'] as $fila) $this->filaDetallada($fila, $tabla['columnas'], $abrirPagina);
     }
 
     private function ajustarTexto(string $texto, int $ancho): array {
@@ -133,8 +161,8 @@ final class InformeResultados extends \tFPDF {
         return $lineas;
     }
 
-    private function filaIndividual(array $datos, array $fila): void {
-        $anchos = array_values(self::COLUMNAS_INDIVIDUALES);
+    private function filaDetallada(array $fila, array $columnas, callable $abrirPagina): void {
+        $anchos = array_values($columnas);
         $celdas = [];
         foreach (array_values($fila) as $columna => $valor) {
             $celdas[] = $this->ajustarTexto((string) $valor, $anchos[$columna]);
@@ -149,7 +177,7 @@ final class InformeResultados extends \tFPDF {
             $restantes = $total - $inicio;
             // Mantiene las preguntas habituales juntas y divide las excepcionalmente largas.
             if ($espacio < min($restantes, 28)) {
-                $this->pagina($datos, false);
+                $abrirPagina();
                 $espacio = (int) floor(($limite - $this->GetY() - $relleno) / $interlineado);
             }
             $lineas = min($espacio, $restantes);

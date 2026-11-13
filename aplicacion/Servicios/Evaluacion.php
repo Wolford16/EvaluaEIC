@@ -40,6 +40,9 @@ final class Evaluacion {
     public static function autorizar(array $sala,?array $usuario): bool {
         return $usuario && ($usuario['rol']==='admin' || (int)$usuario['id']===(int)$sala['creado_por_id']);
     }
+    public static function etapa(array $sala): ?string {
+        return $sala['es_entrada'] ? 'Entrada' : ($sala['entrada_id'] !== null ? 'Salida' : null);
+    }
     public static function resultadosInforme(string $codigo, array $usuario, ?int $id = null): array {
         return BaseDatos::transaccion(function () use ($codigo, $usuario, $id): array {
             $sala = BaseDatos::bloquearSala($codigo);
@@ -53,22 +56,18 @@ final class Evaluacion {
                 throw new ErrorAplicacion('El informe estará disponible cuando termine la evaluación.', 409);
             }
             $datos = ['titulo' => $sala['titulo'], 'docente' => $sala['docente'], 'codigo' => $sala['codigo']];
+            $datos['etapa'] = self::etapa($sala);
             if ($id !== null) {
                 $participante = self::buscarParticipante($sala, $id);
                 $filas = [];
                 foreach (self::preguntasRespondidas($preguntas, $id) as $indice => $pregunta) {
                     $elegida = $pregunta['elegida'];
-                    $correcta = (int) $pregunta['correcta'];
                     $filas[] = [
                         'numero' => $indice + 1,
                         'pregunta' => $pregunta['enunciado'],
-                        'respuesta' => $elegida === null ? '-' : self::opcionInforme($pregunta, $elegida),
-                        'correcta' => self::opcionInforme($pregunta, $correcta),
-                        'resultado' => match ($elegida) {
-                            null => 'Sin responder',
-                            $correcta => 'Correcta',
-                            default => 'Incorrecta',
-                        },
+                        'respuesta' => self::respuestaInforme($pregunta, $elegida) ?? '-',
+                        'correcta' => self::solucionInforme($pregunta),
+                        'resultado' => $elegida === null ? 'Sin responder' : ($pregunta['acierto'] ? 'Correcta' : 'Incorrecta'),
                     ];
                 }
                 return $datos + ['participante' => $participante['nombre'], 'filas' => $filas];
@@ -76,7 +75,7 @@ final class Evaluacion {
             $incorrectas = BaseDatos::ejecutar(
                 'SELECT r.participante_id, COUNT(*) FROM respuestas_participantes r
                  JOIN participantes p ON p.id = r.participante_id
-                 WHERE p.sala_id = ? AND r.indice < ? AND r.opcion IS NOT NULL AND r.correcta = 0
+                 WHERE p.sala_id = ? AND r.indice < ? AND (r.opcion IS NOT NULL OR r.texto IS NOT NULL) AND r.correcta = 0
                  GROUP BY r.participante_id',
                 [$sala['id'], $total]
             )->fetchAll(\PDO::FETCH_KEY_PAIR);
@@ -86,11 +85,33 @@ final class Evaluacion {
                 $fila['incorrectas'] = (int) ($incorrectas[$fila['id']] ?? 0);
                 $fila['sin_responder'] = $total - $fila['aciertos'] - $fila['incorrectas'];
             }
+            if ($datos['etapa'] !== null) {
+                $aciertos = BaseDatos::ejecutar(
+                    'SELECT r.indice, SUM(r.correcta) FROM respuestas_participantes r
+                     JOIN participantes p ON p.id = r.participante_id WHERE p.sala_id = ? GROUP BY r.indice',
+                    [$sala['id']]
+                )->fetchAll(\PDO::FETCH_KEY_PAIR);
+                $detalle = [];
+                foreach ($preguntas as $indice => $pregunta) {
+                    $detalle[] = [$indice + 1, $pregunta['enunciado'], self::solucionInforme($pregunta),
+                        ($aciertos[$indice] ?? 0) . ' de ' . count($filas)];
+                }
+                $datos['tablas'] = [['titulo'=>'Resultados por pregunta', 'columnas'=>['N.º'=>28, 'Pregunta'=>235,
+                    'Respuesta correcta'=>171, 'Aciertos'=>82], 'filas'=>$detalle]];
+            }
             return $datos + ['filas' => $filas];
         });
     }
     private static function opcionInforme(array $pregunta, int $indice): string {
         return chr(65 + $indice) . '. ' . $pregunta['opciones'][$indice];
+    }
+    public static function solucionInforme(array $pregunta): string {
+        return ($pregunta['tipo'] ?? null) === Preguntas::COMPLETACION
+            ? implode(' / ', $pregunta['respuestas_aceptadas'])
+            : self::opcionInforme($pregunta, (int) $pregunta['correcta']);
+    }
+    public static function respuestaInforme(array $pregunta, int|string|null $respuesta): ?string {
+        return is_int($respuesta) ? self::opcionInforme($pregunta, $respuesta) : $respuesta;
     }
     public static function historialRespuestas(string $codigo, ?array $usuario, string $token, ?int $id): array {
         return BaseDatos::transaccion(function () use ($codigo, $usuario, $token, $id): array {
@@ -110,7 +131,8 @@ final class Evaluacion {
                 throw new ErrorAplicacion('El historial estará disponible cuando termine la evaluación.', 409);
             }
 
-            return ['nombre' => $participante['nombre'], 'preguntas' => self::preguntasRespondidas($preguntas, (int) $participante['id'])];
+            return ['nombre' => $participante['nombre'], 'etapa' => self::etapa($sala),
+                'preguntas' => self::preguntasRespondidas($preguntas, (int) $participante['id'])];
         });
     }
     private static function buscarParticipante(array $sala, int $id): array {
@@ -123,13 +145,14 @@ final class Evaluacion {
     }
     private static function preguntasRespondidas(array $preguntas, int $id): array {
         $filas = BaseDatos::ejecutar(
-            'SELECT indice, opcion, puntos FROM respuestas_participantes WHERE participante_id = ?',
+            'SELECT indice, opcion, texto, correcta, puntos FROM respuestas_participantes WHERE participante_id = ?',
             [$id]
         )->fetchAll();
         $respuestas = array_column($filas, null, 'indice');
         foreach ($preguntas as $indice => &$pregunta) {
             $opcion = $respuestas[$indice]['opcion'] ?? null;
-            $pregunta['elegida'] = $opcion === null ? null : (int) $opcion;
+            $pregunta['elegida'] = $opcion === null ? ($respuestas[$indice]['texto'] ?? null) : (int) $opcion;
+            $pregunta['acierto'] = (bool) ($respuestas[$indice]['correcta'] ?? false);
             $pregunta['puntos'] = (int) ($respuestas[$indice]['puntos'] ?? 0);
         }
         return $preguntas;
@@ -213,7 +236,20 @@ final class Evaluacion {
             $revelada = $cantidadEquipos && $fase['fase']==='revelacion' ? $fase['indice'] : null;
             $ranking=self::ranking((int)$sala['id'],$total,$fase['cerradas'],$ahora,$revelada);
             $resultado=['codigo'=>$sala['codigo'],'titulo'=>$sala['titulo'],'docente'=>$sala['docente'],'tiempo'=>(int)$sala['tiempo'],'total'=>$total,'fase'=>$fase['fase'],'indice'=>$fase['indice'],'limite'=>$fase['limite'],'ahora'=>$ahora,'cantidad'=>count($ranking),'conectados'=>count(array_filter($ranking,fn($p)=>$p['conectado'])),'anfitrion'=>$anfitrion,'cantidad_equipos'=>$cantidadEquipos];
+            $resultado['etapa'] = self::etapa($sala);
             if (!$anfitrion && !$participante) return $resultado;
+            if ($anfitrion && $fase['fase'] === 'finalizada' && $resultado['etapa'] !== null) {
+                $resultado['codigo_entrada'] = $sala['es_entrada'] ? $sala['codigo'] :
+                    BaseDatos::ejecutar('SELECT codigo FROM salas_evaluacion WHERE id = ?', [$sala['entrada_id']])->fetchColumn();
+                if ($sala['es_entrada']) {
+                    $salida = BaseDatos::ejecutar('SELECT codigo, estado, inicio, tiempo FROM salas_evaluacion WHERE entrada_id = ?', [$sala['id']])->fetch();
+                    $resultado['codigo_salida'] = $salida['codigo'] ?? null;
+                    $resultado['salida_finalizada'] = $salida && self::fase($salida, $total, $ahora)['fase'] === 'finalizada';
+                } else {
+                    $resultado['codigo_salida'] = $sala['codigo'];
+                    $resultado['salida_finalizada'] = true;
+                }
+            }
             if ($cantidadEquipos) $resultado['equipos'] = self::resultadosEquipos($ranking,$cantidadEquipos,$fase['cerradas'],$revelada!==null);
             foreach ($ranking as &$fila) unset($fila['acierto_revelado']);
             unset($fila);
@@ -222,40 +258,65 @@ final class Evaluacion {
                 $id=(int)$participante['id'];
                 $resultado['participante']=current(array_filter($ranking,fn($p)=>$p['id']===$id)) ?: ['id'=>$id,'nombre'=>$participante['nombre']];
                 $resultado['participante']['racha'] = self::racha($id, $fase['cerradas']);
+                if ($sala['es_entrada']) $resultado['codigo_personal'] = self::codigoPersonal($token);
             }
             if (in_array($fase['fase'],['pregunta','revelacion'],true)) {
                 $pregunta=$preguntas[$fase['indice']];
-                if ($fase['fase']==='pregunta') unset($pregunta['correcta'],$pregunta['explicacion']);
+                if ($fase['fase']==='pregunta') unset($pregunta['correcta'],$pregunta['explicacion'],$pregunta['respuestas_aceptadas']);
                 $resultado['pregunta']=$pregunta;
                 if ($participante) {
-                    $respuesta=BaseDatos::ejecutar('SELECT opcion,correcta,tiempo,puntos FROM respuestas_participantes WHERE participante_id=? AND indice=?',[$participante['id'],$fase['indice']])->fetch();
+                    $respuesta=BaseDatos::ejecutar('SELECT opcion,texto,correcta,tiempo,puntos FROM respuestas_participantes WHERE participante_id=? AND indice=?',[$participante['id'],$fase['indice']])->fetch();
                     if ($respuesta && $fase['fase']==='pregunta') unset($respuesta['correcta'],$respuesta['puntos']);
                     $resultado['respuesta']=$respuesta ?: null;
                 }
-                $resultado['respondieron']=(int)BaseDatos::ejecutar('SELECT COUNT(*) FROM respuestas_participantes r JOIN participantes p ON p.id=r.participante_id WHERE p.sala_id=? AND r.indice=? AND r.opcion IS NOT NULL',[$sala['id'],$fase['indice']])->fetchColumn();
+                $resultado['respondieron']=(int)BaseDatos::ejecutar('SELECT COUNT(*) FROM respuestas_participantes r JOIN participantes p ON p.id=r.participante_id WHERE p.sala_id=? AND r.indice=? AND (r.opcion IS NOT NULL OR r.texto IS NOT NULL)',[$sala['id'],$fase['indice']])->fetchColumn();
             }
             return $resultado;
         });
     }
     public static function unirse(array $datos): array {
         $codigo=mb_strtoupper(Seguridad::texto($datos['codigo']??'',4,12,'Código'));
-        $nombre=Seguridad::texto($datos['nombre']??'',2,100,'Nombre');
-        $avatar=Seguridad::entero($datos['avatar']??0,0,count(self::AVATARES)-1,'avatar');
-        return BaseDatos::transaccion(function() use ($codigo,$nombre,$avatar) {
+        return BaseDatos::transaccion(function() use ($codigo,$datos) {
             $sala=BaseDatos::bloquearSala($codigo);
             if (!$sala) throw new ErrorAplicacion('No encontramos esa sala.',404);
             if ($sala['estado']!=='espera') throw new ErrorAplicacion('La actividad ya comenzó o finalizó. Solicita una nueva sala al docente.',409);
             if ((int)BaseDatos::ejecutar('SELECT COUNT(*) FROM participantes WHERE sala_id=?',[$sala['id']])->fetchColumn()>=300) throw new ErrorAplicacion('La sala alcanzó su límite de 300 participantes.',409);
+            $origen = null;
+            $codigoPersonal = $datos['codigo_personal'] ?? '';
+            if ($sala['entrada_id'] !== null && $codigoPersonal !== '') {
+                $clave = strtoupper(preg_replace('/[\s-]+/', '', Seguridad::texto($codigoPersonal, 16, 32, 'Código personal')));
+                if (!preg_match('/\A[A-F0-9]{16}\z/', $clave)) throw new ErrorAplicacion('Revisa el código personal de entrada.');
+                $origen = BaseDatos::ejecutar(
+                    'SELECT id, nombre, avatar FROM participantes WHERE sala_id = ? AND codigo_seguimiento_hash = ?',
+                    [$sala['entrada_id'], hash('sha256', $clave)]
+                )->fetch();
+                if (!$origen) throw new ErrorAplicacion('El código personal no corresponde a este examen de entrada.');
+                if (BaseDatos::ejecutar('SELECT id FROM participantes WHERE sala_id = ? AND participante_entrada_id = ?',
+                    [$sala['id'], $origen['id']])->fetchColumn()) {
+                    throw new ErrorAplicacion('Este código personal ya se registró en la salida. Continúa desde el dispositivo donde ingresaste.', 409);
+                }
+            } elseif ($sala['entrada_id'] !== null && ($datos['solo_salida'] ?? null) !== '1' && ($datos['solo_salida'] ?? null) !== 1) {
+                throw new ErrorAplicacion('Escribe tu código personal o indica que participarás solo en la salida.');
+            }
+            $nombre = $origen['nombre'] ?? Seguridad::texto($datos['nombre'] ?? '', 2, 100, 'Nombre');
+            $avatar = $origen['avatar'] ?? Seguridad::entero($datos['avatar'] ?? 0, 0, count(self::AVATARES)-1, 'avatar');
             $token=bin2hex(random_bytes(32));
-            BaseDatos::ejecutar('INSERT INTO participantes (sala_id,nombre,avatar,token_hash,visto_en,creado_en) VALUES (?,?,?,?,?,?)',[$sala['id'],$nombre,$avatar,hash('sha256',$token),microtime(true),date('Y-m-d H:i:s')]);
+            $seguimiento = $sala['es_entrada'] ? hash('sha256', self::codigoPersonal($token)) : null;
+            BaseDatos::ejecutar(
+                'INSERT INTO participantes (sala_id,nombre,avatar,token_hash,visto_en,creado_en,codigo_seguimiento_hash,participante_entrada_id)
+                 VALUES (?,?,?,?,?,?,?,?)',
+                [$sala['id'],$nombre,$avatar,hash('sha256',$token),microtime(true),date('Y-m-d H:i:s'),$seguimiento,$origen['id'] ?? null]
+            );
             return ['token'=>$token,'codigo'=>$codigo];
         });
+    }
+    private static function codigoPersonal(string $token): string {
+        return strtoupper(substr(hash('sha256', 'seguimiento:' . $token), 0, 16));
     }
     public static function responder(array $datos,string $token): array {
         $codigo=Seguridad::texto($datos['codigo']??'',4,12,'Código');
         $indice=Seguridad::entero($datos['indice']??null,0,29,'pregunta');
-        $opcion=Seguridad::entero($datos['opcion']??null,0,3,'opción');
-        return BaseDatos::transaccion(function() use ($codigo,$indice,$opcion,$token) {
+        return BaseDatos::transaccion(function() use ($codigo,$indice,$datos,$token) {
             $sala=BaseDatos::bloquearSala($codigo);
             if (!$sala) throw new ErrorAplicacion('Sala no encontrada.',404);
             $p=self::participante($sala,$token);
@@ -265,11 +326,24 @@ final class Evaluacion {
             if ($fase['fase']!=='pregunta' || $fase['indice']!==$indice) throw new ErrorAplicacion('El tiempo de esta pregunta terminó.',409);
             if (BaseDatos::ejecutar('SELECT id FROM respuestas_participantes WHERE participante_id=? AND indice=?',[$p['id'],$indice])->fetchColumn()) throw new ErrorAplicacion('Tu respuesta ya quedó registrada.',409);
             $tiempo=max(0,$ahora-((float)$sala['inicio']+$indice*((int)$sala['tiempo']+4)));
-            if (!array_key_exists($opcion,$preguntas[$indice]['opciones'])) throw new ErrorAplicacion('Selecciona una opción de la pregunta.');
-            $correcta=$opcion===(int)$preguntas[$indice]['correcta'];
-            BaseDatos::ejecutar('INSERT INTO respuestas_participantes (participante_id,indice,opcion,correcta,tiempo,puntos) VALUES (?,?,?,?,?,?)',[$p['id'],$indice,$opcion,(int)$correcta,$tiempo,self::puntos($correcta,$tiempo,(int)$sala['tiempo'])]);
+            $pregunta = $preguntas[$indice];
+            $opcion = null;
+            $texto = null;
+            if (($pregunta['tipo'] ?? null) === Preguntas::COMPLETACION) {
+                $texto = Preguntas::textoRespuesta($datos['texto'] ?? null);
+                $aceptadas = array_map([Preguntas::class, 'normalizarRespuesta'], $pregunta['respuestas_aceptadas']);
+                $correcta = in_array(Preguntas::normalizarRespuesta($texto), $aceptadas, true);
+            } else {
+                $opcion = Seguridad::entero($datos['opcion'] ?? null, 0, 3, 'opción');
+                if (!array_key_exists($opcion, $pregunta['opciones'])) throw new ErrorAplicacion('Selecciona una opción de la pregunta.');
+                $correcta = $opcion === (int) $pregunta['correcta'];
+            }
+            BaseDatos::ejecutar(
+                'INSERT INTO respuestas_participantes (participante_id,indice,opcion,texto,correcta,tiempo,puntos) VALUES (?,?,?,?,?,?,?)',
+                [$p['id'], $indice, $opcion, $texto, (int) $correcta, $tiempo, self::puntos($correcta, $tiempo, (int) $sala['tiempo'])]
+            );
             BaseDatos::ejecutar('UPDATE participantes SET visto_en=? WHERE id=?',[$ahora,$p['id']]);
-            return ['mensaje'=>'Respuesta registrada. Espera a que termine el tiempo.','opcion'=>$opcion];
+            return ['mensaje'=>'Respuesta registrada. Espera a que termine el tiempo.','opcion'=>$opcion,'texto'=>$texto];
         });
     }
 }

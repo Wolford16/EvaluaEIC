@@ -6,6 +6,7 @@ use EvaluaEIC\Servicios\{BaseDatos, Migraciones};
 foreach(['pdo_mysql','mbstring','fileinfo','curl'] as $extension) if(!extension_loaded($extension)) {fwrite(STDERR,"Activa la extensión PHP: {$extension}\n");exit(1);}
 try {
     BaseDatos::conexion()->exec(file_get_contents(RAIZ . '/database/instalar_evaluaeic.sql'));
+    BaseDatos::conexion()->exec(file_get_contents(RAIZ . '/database/actualizar_evaluaeic.sql'));
     Migraciones::actualizarUsuarios();
     if(!BaseDatos::ejecutar("SELECT nombre FROM configuraciones WHERE nombre='motor_ia'")->fetchColumn()) BaseDatos::ejecutar('INSERT INTO configuraciones (nombre,valor) VALUES (?,?)',['motor_ia','openrouter']);
     else BaseDatos::ejecutar("UPDATE configuraciones SET valor='openrouter' WHERE nombre='motor_ia' AND valor<>'openrouter'");

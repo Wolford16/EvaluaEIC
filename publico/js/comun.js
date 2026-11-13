@@ -95,8 +95,9 @@ window.Evalua = (() => {
   }
   function detalleRespuestas(preguntas) {
     return `<ol class="historial-respuestas">${preguntas.map((pregunta, indice) => {
+      const esTexto = pregunta.tipo === 'completacion';
       const correcta = Number(pregunta.correcta);
-      const acierto = pregunta.elegida === correcta;
+      const acierto = pregunta.acierto ?? pregunta.elegida === correcta;
       const resultado = pregunta.elegida === null ? 'Sin respuesta' : acierto ? 'Correcta' : 'Incorrecta';
       const clase = pregunta.elegida === null ? '' : acierto ? 'verde' : 'roja';
       const opcion = numero => `${'ABCD'[numero]}. ${escapar(pregunta.opciones[numero])}`;
@@ -104,10 +105,10 @@ window.Evalua = (() => {
         <div class="fila-entre"><span class="sobrelinea">PREGUNTA ${indice+1}</span><span class="insignia ${clase}">${resultado}</span></div>
         <h3>${escapar(pregunta.enunciado)}</h3>
         <dl>
-          <div><dt>Respuesta elegida</dt><dd>${pregunta.elegida === null ? 'Sin respuesta' : opcion(pregunta.elegida)}</dd></div>
-          <div><dt>Respuesta correcta</dt><dd>${opcion(correcta)}</dd></div>
+          <div><dt>Respuesta elegida</dt><dd>${pregunta.elegida === null ? 'Sin respuesta' : esTexto ? escapar(pregunta.elegida) : opcion(pregunta.elegida)}</dd></div>
+          <div><dt>Respuesta correcta</dt><dd>${esTexto ? escapar(pregunta.respuestas_aceptadas.join(' / ')) : opcion(correcta)}</dd></div>
         </dl>
-        <p class="explicacion">${escapar(pregunta.explicacion)}</p>
+        ${pregunta.explicacion ? `<p class="explicacion">${escapar(pregunta.explicacion)}</p>` : ''}
         <small>${pregunta.puntos.toLocaleString('es')} puntos</small>
       </li>`;
     }).join('')}</ol>`;

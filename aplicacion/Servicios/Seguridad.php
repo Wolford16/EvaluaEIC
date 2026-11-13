@@ -40,10 +40,17 @@ final class Seguridad {
         if ($numero === false || $numero < $minimo || $numero > $maximo) throw new ErrorAplicacion("Revisa {$campo}.");
         return $numero;
     }
-    public static function documento(int $id, array $usuario): array {
-        $documento = BaseDatos::ejecutar('SELECT * FROM documentos WHERE id = ?', [$id])->fetch();
+    public static function puedeGestionarDocumento(array $documento, array $usuario): bool {
+        return $usuario['rol'] === 'admin' || (int) $documento['subido_por_id'] === (int) $usuario['id'];
+    }
+    public static function documento(int $id, array $usuario, bool $permitirCompartido = false, bool $bloquear = false): array {
+        $sql = 'SELECT * FROM documentos WHERE id = ?' . ($bloquear ? ' FOR UPDATE' : '');
+        $documento = BaseDatos::ejecutar($sql, [$id])->fetch();
         if (!$documento) throw new ErrorAplicacion('El documento ya no está disponible.', 404);
-        if ($usuario['rol'] !== 'admin' && (int)$documento['subido_por_id'] !== (int)$usuario['id']) throw new ErrorAplicacion('No tienes acceso a este documento.', 403);
+        $puedeConsultarCompartido = $permitirCompartido && $documento['curso_id'] !== null && (bool) $documento['compartido'];
+        if (!self::puedeGestionarDocumento($documento, $usuario) && !$puedeConsultarCompartido) {
+            throw new ErrorAplicacion('No tienes acceso a este documento.', 403);
+        }
         return $documento;
     }
 }

@@ -30,34 +30,18 @@ final class InteligenciaArtificial {
         $resultado = [];
         foreach ($preguntas as $pregunta) {
             if (!is_array($pregunta)) throw new ErrorAplicacion('Revisa el formato de las preguntas.');
-            $opciones = $pregunta['opciones'] ?? [];
-            if (!is_array($opciones) || !es_lista($opciones) || count($opciones) !== $cantidadOpciones) {
-                throw new ErrorAplicacion("Cada pregunta debe tener {$cantidadOpciones} opciones.");
-            }
-            $opciones = array_map(fn($opcion) => Seguridad::texto($opcion, 1, 1500, 'Opción'), $opciones);
-            if (count(array_unique(array_map('mb_strtolower', $opciones))) !== $cantidadOpciones) {
-                throw new ErrorAplicacion('Las opciones deben ser diferentes.');
-            }
-            $ultimoIndice = $cantidadOpciones - 1;
-            if (!is_int($pregunta['correcta'] ?? null)) throw new ErrorAplicacion("La respuesta correcta debe ser un índice entero de 0 a {$ultimoIndice}.");
+            $contenido = Preguntas::validarOpciones($pregunta, $cantidadOpciones);
             $resultado[] = [
                 'enunciado'=>Seguridad::texto($pregunta['enunciado'] ?? '', 5, 3000, 'Enunciado'),
-                'opciones'=>$opciones,
-                'correcta'=>Seguridad::entero($pregunta['correcta'], 0, $ultimoIndice, 'respuesta correcta'),
                 'explicacion'=>Seguridad::texto($pregunta['explicacion'] ?? '', 1, 3000, 'Explicación'),
-            ];
+            ] + $contenido;
         }
         self::validarSinDuplicados($resultado);
         return $resultado;
     }
 
     public static function validarSinDuplicados(array $preguntas): void {
-        $vistos = [];
-        foreach ($preguntas as $pregunta) {
-            $clave = trim(preg_replace('/[^\p{L}\p{N}]+/u', ' ', mb_strtolower($pregunta['enunciado'])));
-            if (isset($vistos[$clave])) throw new ErrorAplicacion('Hay preguntas con el mismo enunciado. Edita o elimina las repetidas.', 422, 'openrouter_formato');
-            $vistos[$clave] = true;
-        }
+        Preguntas::validarSinDuplicados($preguntas, 'openrouter_formato');
     }
 
     public static function probar(string $motor = 'openrouter'): array {

@@ -7,7 +7,7 @@
     <meta name="csrf-token" content="<?= escapar($csrf) ?>">
     <title>EvaluaEIC · Escuela de Investigación Criminal</title>
     <link rel="icon" href="<?= escapar(ruta_app('/imagenes/logo-eic.png')) ?>" type="image/png">
-    <link rel="stylesheet" href="<?= escapar(ruta_app('/css/estilos.css')) ?>">
+    <link rel="stylesheet" href="<?= escapar(ruta_app('/css/estilos.css') . '?v=' . filemtime(RAIZ . '/publico/css/estilos.css')) ?>">
     <script id="datos-iniciales" type="application/json"><?= json_seguro($datosIniciales) ?></script>
     <script src="<?= escapar(ruta_app('/js/terceros/codigo-qr.js')) ?>" defer></script>
     <script src="<?= escapar(ruta_app('/js/comun.js') . '?v=' . filemtime(RAIZ . '/publico/js/comun.js')) ?>" defer></script>
